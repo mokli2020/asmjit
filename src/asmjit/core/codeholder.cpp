@@ -25,14 +25,14 @@ static inline uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) noexcep
 // CodeHolder - LabelEntry Globals & Utilities
 // ===========================================
 
-static constexpr LabelEntry::ExtraData _makeSharedLabelExtraData() noexcept {
+static constexpr LabelEntry::ExtraData CodeHolder_makeSharedLabelExtraData() noexcept {
   LabelEntry::ExtraData extraData {};
   extraData._sectionId = Globals::kInvalidId;
   extraData._parentId = Globals::kInvalidId;
   return extraData;
 }
 
-static constexpr LabelEntry::ExtraData CodeHolder_sharedLabelExtraData = _makeSharedLabelExtraData();
+static constexpr LabelEntry::ExtraData CodeHolder_sharedLabelExtraData = CodeHolder_makeSharedLabelExtraData();
 
 class ResolveFixupIterator {
 public:

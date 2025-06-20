@@ -164,7 +164,7 @@ Error RACFGBuilder::onInst(InstNode* inst, InstControlFlow& controlType, RAInstB
 
     if (opCount) {
       uint32_t consecutiveOffset = 0xFFFFFFFFu;
-      uint32_t consecutiveParent = Globals::kInvalidId;
+      RAWorkId consecutiveParent = RAWorkReg::kIdNone;
 
       for (uint32_t i = 0; i < opCount; i++) {
         const Operand& op = opArray[i];
@@ -638,8 +638,7 @@ ARMRAPass::~ARMRAPass() noexcept {}
 void ARMRAPass::onInit() noexcept {
   Arch arch = cc()->arch();
 
-  _emitHelper._emitter = _cb;
-
+  _emitHelper.reset(_cb);
   _archTraits = &ArchTraits::byArch(arch);
   _physRegCount.set(RegGroup::kGp, 32);
   _physRegCount.set(RegGroup::kVec, 32);
@@ -688,8 +687,8 @@ Error ARMRAPass::buildCFG() noexcept {
 
 ASMJIT_FAVOR_SPEED Error ARMRAPass::_rewrite(BaseNode* first, BaseNode* stop) noexcept {
   uint32_t virtCount = cc()->_vRegArray.size();
-
   BaseNode* node = first;
+
   while (node != stop) {
     BaseNode* next = node->next();
     if (node->isInst()) {
@@ -699,37 +698,36 @@ ASMJIT_FAVOR_SPEED Error ARMRAPass::_rewrite(BaseNode* first, BaseNode* stop) no
       Operand* operands = inst->operands();
       uint32_t opCount = inst->opCount();
 
-      uint32_t i;
-
       // Rewrite virtual registers into physical registers.
       if (raInst) {
-        // If the instruction contains pass data (raInst) then it was a subject
-        // for register allocation and must be rewritten to use physical regs.
-        RATiedReg* tiedRegs = raInst->tiedRegs();
+        // This data is allocated by Zone passed to `runOnFunction()`, which will be reset after the RA pass finishes.
+        // So reset this data to prevent having a dead pointer after the RA pass is complete.
+        node->resetPassData();
+
+        // If the instruction contains pass data (raInst) then it was a subject for register allocation and must be
+        // rewritten to use physical regs.
+        const RATiedReg* tiedRegs = raInst->tiedRegs();
         uint32_t tiedCount = raInst->tiedCount();
 
-        for (i = 0; i < tiedCount; i++) {
-          RATiedReg* tiedReg = &tiedRegs[i];
+        for (uint32_t i = 0; i < tiedCount; i++) {
+          const RATiedReg& tiedReg = tiedRegs[i];
 
-          Support::BitWordIterator<uint32_t> useIt(tiedReg->useRewriteMask());
-          uint32_t useId = tiedReg->useId();
-
-          while (useIt.hasNext()) {
-            inst->_rewriteIdAtIndex(useIt.next(), useId);
+          Support::BitWordIterator<uint32_t> useIt(tiedReg.useRewriteMask());
+          if (useIt.hasNext()) {
+            uint32_t useId = tiedReg.useId();
+            do {
+              inst->_rewriteIdAtIndex(useIt.next(), useId);
+            } while (useIt.hasNext());
           }
 
-          Support::BitWordIterator<uint32_t> outIt(tiedReg->outRewriteMask());
-          uint32_t outId = tiedReg->outId();
-
-          while (outIt.hasNext()) {
-            inst->_rewriteIdAtIndex(outIt.next(), outId);
+          Support::BitWordIterator<uint32_t> outIt(tiedReg.outRewriteMask());
+          if (outIt.hasNext()) {
+            uint32_t outId = tiedReg.outId();
+            do {
+              inst->_rewriteIdAtIndex(outIt.next(), outId);
+            } while (outIt.hasNext());
           }
         }
-
-        // This data is allocated by Zone passed to `runOnFunction()`, which
-        // will be reset after the RA pass finishes. So reset this data to
-        // prevent having a dead pointer after the RA pass is complete.
-        node->resetPassData();
 
         if (ASMJIT_UNLIKELY(node->type() != NodeType::kInst)) {
           // FuncRet terminates the flow, it must either be removed if the exit
@@ -751,7 +749,7 @@ ASMJIT_FAVOR_SPEED Error ARMRAPass::_rewrite(BaseNode* first, BaseNode* stop) no
       }
 
       // Rewrite stack slot addresses.
-      for (i = 0; i < opCount; i++) {
+      for (uint32_t i = 0; i < opCount; i++) {
         Operand& op = operands[i];
         if (op.isMem()) {
           BaseMem& mem = op.as<BaseMem>();
@@ -841,7 +839,7 @@ Error ARMRAPass::updateStackFrame() noexcept {
 // a64::ARMRAPass - OnEmit
 // =======================
 
-Error ARMRAPass::emitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
+Error ARMRAPass::emitMove(RAWorkId workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
   RAWorkReg* wReg = workRegById(workId);
   Reg dst(wReg->signature(), dstPhysId);
   Reg src(wReg->signature(), srcPhysId);
@@ -859,12 +857,12 @@ Error ARMRAPass::emitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysI
   return _emitHelper.emitRegMove(dst, src, wReg->typeId(), comment);
 }
 
-Error ARMRAPass::emitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept {
+Error ARMRAPass::emitSwap(RAWorkId aWorkId, uint32_t aPhysId, RAWorkId bWorkId, uint32_t bPhysId) noexcept {
   DebugUtils::unused(aWorkId, aPhysId, bWorkId, bPhysId);
   return DebugUtils::errored(kErrorInvalidState);
 }
 
-Error ARMRAPass::emitLoad(uint32_t workId, uint32_t dstPhysId) noexcept {
+Error ARMRAPass::emitLoad(RAWorkId workId, uint32_t dstPhysId) noexcept {
   RAWorkReg* wReg = workRegById(workId);
   Reg dstReg(wReg->signature(), dstPhysId);
   BaseMem srcMem(workRegAsMem(wReg));
@@ -882,7 +880,7 @@ Error ARMRAPass::emitLoad(uint32_t workId, uint32_t dstPhysId) noexcept {
   return _emitHelper.emitRegMove(dstReg, srcMem, wReg->typeId(), comment);
 }
 
-Error ARMRAPass::emitSave(uint32_t workId, uint32_t srcPhysId) noexcept {
+Error ARMRAPass::emitSave(RAWorkId workId, uint32_t srcPhysId) noexcept {
   RAWorkReg* wReg = workRegById(workId);
   BaseMem dstMem(workRegAsMem(wReg));
   Reg srcReg(wReg->signature(), srcPhysId);

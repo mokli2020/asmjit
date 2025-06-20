@@ -411,18 +411,18 @@ namespace asmjit {
 #endif
 
 // Function attributes.
-#if !defined(ASMJIT_BUILD_DEBUG) && defined(__GNUC__)
+#if !defined(ASMJIT_BUILD_DEBUG) && defined(__GNUC__) && !defined(_DOXYGEN)
   #define ASMJIT_INLINE inline __attribute__((__always_inline__))
-#elif !defined(ASMJIT_BUILD_DEBUG) && defined(_MSC_VER)
+#elif !defined(ASMJIT_BUILD_DEBUG) && defined(_MSC_VER) && !defined(_DOXYGEN)
   #define ASMJIT_INLINE __forceinline
 #else
   #define ASMJIT_INLINE inline
 #endif
 
 
-#if defined(__clang__)
+#if defined(__clang__) && !defined(_DOXYGEN)
   #define ASMJIT_INLINE_NODEBUG inline __attribute__((__always_inline__, __nodebug__))
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && !defined(_DOXYGEN)
   #define ASMJIT_INLINE_NODEBUG inline __attribute__((__always_inline__, __artificial__))
 #else
   #define ASMJIT_INLINE_NODEBUG inline
@@ -641,57 +641,5 @@ namespace asmjit {
       return (std::underlying_type_t<T>)(a) >= (std::underlying_type_t<T>)(b); \
     }
 #endif
-
-//! Defines a strong type `C` that wraps a value of `T`.
-#define ASMJIT_DEFINE_STRONG_TYPE(C, T)                                                   \
-struct C {                                                                                \
-  T v;                                                                                    \
-                                                                                          \
-  ASMJIT_INLINE_NODEBUG C() = default;                                                    \
-  ASMJIT_INLINE_CONSTEXPR explicit C(T x) noexcept : v(x) {}                              \
-  ASMJIT_INLINE_CONSTEXPR C(const C& other) noexcept = default;                           \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR T value() const noexcept { return v; }                          \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR T* valuePtr() noexcept { return &v; }                           \
-  ASMJIT_INLINE_CONSTEXPR const T* valuePtr() const noexcept { return &v; }               \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR C& operator=(T x) noexcept { v = x; return *this; };            \
-  ASMJIT_INLINE_CONSTEXPR C& operator=(const C& x) noexcept { v = x.v; return *this; }    \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR C operator+(T x) const noexcept { return C(v + x); }            \
-  ASMJIT_INLINE_CONSTEXPR C operator-(T x) const noexcept { return C(v - x); }            \
-  ASMJIT_INLINE_CONSTEXPR C operator*(T x) const noexcept { return C(v * x); }            \
-  ASMJIT_INLINE_CONSTEXPR C operator/(T x) const noexcept { return C(v / x); }            \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR C operator+(const C& x) const noexcept { return C(v + x.v); }   \
-  ASMJIT_INLINE_CONSTEXPR C operator-(const C& x) const noexcept { return C(v - x.v); }   \
-  ASMJIT_INLINE_CONSTEXPR C operator*(const C& x) const noexcept { return C(v * x.v); }   \
-  ASMJIT_INLINE_CONSTEXPR C operator/(const C& x) const noexcept { return C(v / x.v); }   \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR C& operator+=(T x) noexcept { v += x; return *this; }           \
-  ASMJIT_INLINE_CONSTEXPR C& operator-=(T x) noexcept { v -= x; return *this; }           \
-  ASMJIT_INLINE_CONSTEXPR C& operator*=(T x) noexcept { v *= x; return *this; }           \
-  ASMJIT_INLINE_CONSTEXPR C& operator/=(T x) noexcept { v /= x; return *this; }           \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR C& operator+=(const C& x) noexcept { v += x.v; return *this; }  \
-  ASMJIT_INLINE_CONSTEXPR C& operator-=(const C& x) noexcept { v -= x.v; return *this; }  \
-  ASMJIT_INLINE_CONSTEXPR C& operator*=(const C& x) noexcept { v *= x.v; return *this; }  \
-  ASMJIT_INLINE_CONSTEXPR C& operator/=(const C& x) noexcept { v /= x.v; return *this; }  \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR bool operator==(T x) const noexcept { return v == x; }          \
-  ASMJIT_INLINE_CONSTEXPR bool operator!=(T x) const noexcept { return v != x; }          \
-  ASMJIT_INLINE_CONSTEXPR bool operator> (T x) const noexcept { return v >  x; }          \
-  ASMJIT_INLINE_CONSTEXPR bool operator>=(T x) const noexcept { return v >= x; }          \
-  ASMJIT_INLINE_CONSTEXPR bool operator< (T x) const noexcept { return v <  x; }          \
-  ASMJIT_INLINE_CONSTEXPR bool operator<=(T x) const noexcept { return v <= x; }          \
-                                                                                          \
-  ASMJIT_INLINE_CONSTEXPR bool operator==(const C& x) const noexcept { return v == x.v; } \
-  ASMJIT_INLINE_CONSTEXPR bool operator!=(const C& x) const noexcept { return v != x.v; } \
-  ASMJIT_INLINE_CONSTEXPR bool operator> (const C& x) const noexcept { return v >  x.v; } \
-  ASMJIT_INLINE_CONSTEXPR bool operator>=(const C& x) const noexcept { return v >= x.v; } \
-  ASMJIT_INLINE_CONSTEXPR bool operator< (const C& x) const noexcept { return v <  x.v; } \
-  ASMJIT_INLINE_CONSTEXPR bool operator<=(const C& x) const noexcept { return v <= x.v; } \
-};
 
 #endif // ASMJIT_CORE_API_CONFIG_H_INCLUDED

@@ -325,56 +325,8 @@ static void generateGpSequenceInternal(
 static void generateRetSequence(BaseEmitter& emitter, bool emitPrologEpilog) {
   using namespace asmjit::x86;
 
-  if (emitter.isAssembler()) {
-    Assembler& cc = *emitter.as<Assembler>();
-
-    Gp rv = eax;
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<uint32_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(rv);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      cc.mov(rv, 0);
-      cc.emitEpilog(frame);
-    }
-    else {
-      cc.mov(rv, 0);
-      cc.ret();
-    }
-  }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    Gp rv = eax;
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<uint32_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(rv);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      cc.mov(rv, 0);
-      cc.emitEpilog(frame);
-    }
-    else {
-      cc.mov(rv, 0);
-      cc.ret();
-    }
-  }
-#endif
 #ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
+  if (emitter.isCompiler()) {
     Compiler& cc = *emitter.as<Compiler>();
 
     Gp rv = cc.newGp32("rv");
@@ -383,89 +335,71 @@ static void generateRetSequence(BaseEmitter& emitter, bool emitPrologEpilog) {
     cc.mov(rv, 0);
     cc.ret(rv);
     cc.endFunc();
+
+    return;
   }
 #endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    Gp rv = eax;
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<uint32_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(rv);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      cc.mov(rv, 0);
+      cc.emitEpilog(frame);
+    }
+    else {
+      cc.mov(rv, 0);
+      cc.ret();
+    }
+
+    return;
+  }
+#endif
+
+  if (emitter.isAssembler()) {
+    Assembler& cc = *emitter.as<Assembler>();
+
+    Gp rv = eax;
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<uint32_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(rv);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      cc.mov(rv, 0);
+      cc.emitEpilog(frame);
+    }
+    else {
+      cc.mov(rv, 0);
+      cc.ret();
+    }
+
+    return;
+  }
 }
 
 static void generateNOpsSequence(BaseEmitter& emitter, uint32_t ops, bool emitPrologEpilog) {
   using namespace asmjit::x86;
 
-  if (emitter.isAssembler()) {
-    Assembler& cc = *emitter.as<Assembler>();
-
-    Gp ra = eax;
-    Gp rb = ebx;
-    Gp rc = ecx;
-    Gp rd = edx;
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(ra, rb, rc, rd);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      for (uint32_t i = 0; i < ops; i += 4) {
-        cc.add(ra, rb);
-        cc.imul(ra, rc);
-        cc.sub(ra, rd);
-        cc.imul(ra, rc);
-      }
-      cc.emitEpilog(frame);
-    }
-    else {
-      for (uint32_t i = 0; i < ops; i += 4) {
-        cc.add(ra, rb);
-        cc.imul(ra, rc);
-        cc.sub(ra, rd);
-        cc.imul(ra, rc);
-      }
-      cc.ret();
-    }
-  }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    Gp ra = eax;
-    Gp rb = ebx;
-    Gp rc = ecx;
-    Gp rd = edx;
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(ra, rb, rc, rd);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      for (uint32_t i = 0; i < ops; i += 4) {
-        cc.add(ra, rb);
-        cc.imul(ra, rc);
-        cc.sub(ra, rd);
-        cc.imul(ra, rc);
-      }
-      cc.emitEpilog(frame);
-    }
-    else {
-      for (uint32_t i = 0; i < ops; i += 4) {
-        cc.add(ra, rb);
-        cc.imul(ra, rc);
-        cc.sub(ra, rd);
-        cc.imul(ra, rc);
-      }
-      cc.ret();
-    }
-  }
-#endif
 #ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
+  if (emitter.isCompiler()) {
     Compiler& cc = *emitter.as<Compiler>();
 
     Gp ra = cc.newGp32("ra");
@@ -488,12 +422,141 @@ static void generateNOpsSequence(BaseEmitter& emitter, uint32_t ops, bool emitPr
 
     cc.ret(ra);
     cc.endFunc();
+
+    return;
   }
 #endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    Gp ra = eax;
+    Gp rb = ebx;
+    Gp rc = ecx;
+    Gp rd = edx;
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(ra, rb, rc, rd);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      for (uint32_t i = 0; i < ops; i += 4) {
+        cc.add(ra, rb);
+        cc.imul(ra, rc);
+        cc.sub(ra, rd);
+        cc.imul(ra, rc);
+      }
+      cc.emitEpilog(frame);
+    }
+    else {
+      for (uint32_t i = 0; i < ops; i += 4) {
+        cc.add(ra, rb);
+        cc.imul(ra, rc);
+        cc.sub(ra, rd);
+        cc.imul(ra, rc);
+      }
+      cc.ret();
+    }
+
+    return;
+  }
+#endif
+
+  if (emitter.isAssembler()) {
+    Assembler& cc = *emitter.as<Assembler>();
+
+    Gp ra = eax;
+    Gp rb = ebx;
+    Gp rc = ecx;
+    Gp rd = edx;
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(ra, rb, rc, rd);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      for (uint32_t i = 0; i < ops; i += 4) {
+        cc.add(ra, rb);
+        cc.imul(ra, rc);
+        cc.sub(ra, rd);
+        cc.imul(ra, rc);
+      }
+      cc.emitEpilog(frame);
+    }
+    else {
+      for (uint32_t i = 0; i < ops; i += 4) {
+        cc.add(ra, rb);
+        cc.imul(ra, rc);
+        cc.sub(ra, rd);
+        cc.imul(ra, rc);
+      }
+      cc.ret();
+    }
+
+    return;
+  }
 }
 
 static void generateGpSequence(BaseEmitter& emitter, InstForm form, bool emitPrologEpilog) {
   using namespace asmjit::x86;
+
+#ifndef ASMJIT_NO_COMPILER
+  if (emitter.isCompiler()) {
+    Compiler& cc = *emitter.as<Compiler>();
+
+    Gp a = cc.newIntPtr("a");
+    Gp b = cc.newIntPtr("b");
+    Gp c = cc.newIntPtr("c");
+    Gp d = cc.newIntPtr("d");
+
+    cc.addFunc(FuncSignature::build<void>());
+    generateGpSequenceInternal(cc, form, a, b, c, d);
+    cc.endFunc();
+
+    return;
+  }
+#endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    x86::Gp a = cc.zax();
+    x86::Gp b = cc.zbx();
+    x86::Gp c = cc.zcx();
+    x86::Gp d = cc.zdx();
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(a, b, c, d);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      generateGpSequenceInternal(cc, form, a, b, c, d);
+      cc.emitEpilog(frame);
+    }
+    else {
+      generateGpSequenceInternal(cc, form, a, b, c, d);
+    }
+
+    return;
+  }
+#endif
 
   if (emitter.isAssembler()) {
     Assembler& cc = *emitter.as<Assembler>();
@@ -519,48 +582,9 @@ static void generateGpSequence(BaseEmitter& emitter, InstForm form, bool emitPro
     else {
       generateGpSequenceInternal(cc, form, a, b, c, d);
     }
+
+    return;
   }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    x86::Gp a = cc.zax();
-    x86::Gp b = cc.zbx();
-    x86::Gp c = cc.zcx();
-    x86::Gp d = cc.zdx();
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(a, b, c, d);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      generateGpSequenceInternal(cc, form, a, b, c, d);
-      cc.emitEpilog(frame);
-    }
-    else {
-      generateGpSequenceInternal(cc, form, a, b, c, d);
-    }
-  }
-#endif
-#ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
-    Compiler& cc = *emitter.as<Compiler>();
-
-    Gp a = cc.newIntPtr("a");
-    Gp b = cc.newIntPtr("b");
-    Gp c = cc.newIntPtr("c");
-    Gp d = cc.newIntPtr("d");
-
-    cc.addFunc(FuncSignature::build<void>());
-    generateGpSequenceInternal(cc, form, a, b, c, d);
-    cc.endFunc();
-  }
-#endif
 }
 
 // Generates a long sequence of SSE instructions using only registers.
@@ -1092,6 +1116,49 @@ static void generateSseSequenceInternal(
 static void generateSseSequence(BaseEmitter& emitter, InstForm form, bool emitPrologEpilog) {
   using namespace asmjit::x86;
 
+#ifndef ASMJIT_NO_COMPILER
+  if (emitter.isCompiler()) {
+    Compiler& cc = *emitter.as<Compiler>();
+
+    Gp gp = cc.newGpz("gp");
+    Vec a = cc.newXmm("a");
+    Vec b = cc.newXmm("b");
+    Vec c = cc.newXmm("c");
+    Vec d = cc.newXmm("d");
+
+    cc.addFunc(FuncSignature::build<void>());
+    generateSseSequenceInternal(cc, form, gp, a, b, c, d);
+    cc.endFunc();
+
+    return;
+  }
+#endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(eax, xmm0, xmm1, xmm2, xmm3);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      generateSseSequenceInternal(cc, form, eax, xmm0, xmm1, xmm2, xmm3);
+      cc.emitEpilog(frame);
+    }
+    else {
+      generateSseSequenceInternal(cc, form, eax, xmm0, xmm1, xmm2, xmm3);
+    }
+
+    return;
+  }
+#endif
+
   if (emitter.isAssembler()) {
     Assembler& cc = *emitter.as<Assembler>();
 
@@ -1111,44 +1178,9 @@ static void generateSseSequence(BaseEmitter& emitter, InstForm form, bool emitPr
     else {
       generateSseSequenceInternal(cc, form, eax, xmm0, xmm1, xmm2, xmm3);
     }
+
+    return;
   }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(eax, xmm0, xmm1, xmm2, xmm3);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      generateSseSequenceInternal(cc, form, eax, xmm0, xmm1, xmm2, xmm3);
-      cc.emitEpilog(frame);
-    }
-    else {
-      generateSseSequenceInternal(cc, form, eax, xmm0, xmm1, xmm2, xmm3);
-    }
-  }
-#endif
-#ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
-    Compiler& cc = *emitter.as<Compiler>();
-
-    Gp gp = cc.newGpz("gp");
-    Vec a = cc.newXmm("a");
-    Vec b = cc.newXmm("b");
-    Vec c = cc.newXmm("c");
-    Vec d = cc.newXmm("d");
-
-    cc.addFunc(FuncSignature::build<void>());
-    generateSseSequenceInternal(cc, form, gp, a, b, c, d);
-    cc.endFunc();
-  }
-#endif
 }
 
 // Generates a long sequence of AVX instructions.
@@ -2299,6 +2331,49 @@ static void generateAvxSequenceInternal(
 static void generateAvxSequence(BaseEmitter& emitter, InstForm form, bool emitPrologEpilog) {
   using namespace asmjit::x86;
 
+#ifndef ASMJIT_NO_COMPILER
+  if (emitter.isCompiler()) {
+    Compiler& cc = *emitter.as<Compiler>();
+
+    Gp gp = cc.newGpz("gp");
+    x86::Vec a = cc.newYmm("a");
+    x86::Vec b = cc.newYmm("b");
+    x86::Vec c = cc.newYmm("c");
+    x86::Vec d = cc.newYmm("d");
+
+    cc.addFunc(FuncSignature::build<void>());
+    generateAvxSequenceInternal(cc, form, gp, a, b, c, d);
+    cc.endFunc();
+
+    return;
+  }
+#endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(eax, ymm0, ymm1, ymm2, ymm3);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      generateAvxSequenceInternal(cc, form, eax, ymm0, ymm1, ymm2, ymm3);
+      cc.emitEpilog(frame);
+    }
+    else {
+      generateAvxSequenceInternal(cc, form, eax, ymm0, ymm1, ymm2, ymm3);
+    }
+
+    return;
+  }
+#endif
+
   if (emitter.isAssembler()) {
     Assembler& cc = *emitter.as<Assembler>();
 
@@ -2318,44 +2393,9 @@ static void generateAvxSequence(BaseEmitter& emitter, InstForm form, bool emitPr
     else {
       generateAvxSequenceInternal(cc, form, eax, ymm0, ymm1, ymm2, ymm3);
     }
+
+    return;
   }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(eax, ymm0, ymm1, ymm2, ymm3);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      generateAvxSequenceInternal(cc, form, eax, ymm0, ymm1, ymm2, ymm3);
-      cc.emitEpilog(frame);
-    }
-    else {
-      generateAvxSequenceInternal(cc, form, eax, ymm0, ymm1, ymm2, ymm3);
-    }
-  }
-#endif
-#ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
-    Compiler& cc = *emitter.as<Compiler>();
-
-    Gp gp = cc.newGpz("gp");
-    x86::Vec a = cc.newYmm("a");
-    x86::Vec b = cc.newYmm("b");
-    x86::Vec c = cc.newYmm("c");
-    x86::Vec d = cc.newYmm("d");
-
-    cc.addFunc(FuncSignature::build<void>());
-    generateAvxSequenceInternal(cc, form, gp, a, b, c, d);
-    cc.endFunc();
-  }
-#endif
 }
 
 // Generates a long sequence of AVX512 instructions.
@@ -5057,6 +5097,53 @@ static void generateAvx512SequenceInternal(
 static void generateAvx512Sequence(BaseEmitter& emitter, InstForm form, bool emitPrologEpilog) {
   using namespace asmjit::x86;
 
+#ifndef ASMJIT_NO_COMPILER
+  if (emitter.isCompiler()) {
+    Compiler& cc = *emitter.as<Compiler>();
+
+    Gp gp = cc.newGpz("gp");
+    Vec vecA = cc.newZmm("vecA");
+    Vec vecB = cc.newZmm("vecB");
+    Vec vecC = cc.newZmm("vecC");
+    Vec vecD = cc.newZmm("vecD");
+
+    KReg kA = cc.newKq("kA");
+    KReg kB = cc.newKq("kB");
+    KReg kC = cc.newKq("kC");
+
+    cc.addFunc(FuncSignature::build<void>());
+    generateAvx512SequenceInternal(cc, form, gp, kA, kB, kC, vecA, vecB, vecC, vecD);
+    cc.endFunc();
+
+    return;
+  }
+#endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      generateAvx512SequenceInternal(cc, form, eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
+      cc.emitEpilog(frame);
+    }
+    else {
+      generateAvx512SequenceInternal(cc, form, eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
+    }
+
+    return;
+  }
+#endif
+
   if (emitter.isAssembler()) {
     Assembler& cc = *emitter.as<Assembler>();
 
@@ -5076,48 +5163,9 @@ static void generateAvx512Sequence(BaseEmitter& emitter, InstForm form, bool emi
     else {
       generateAvx512SequenceInternal(cc, form, eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
     }
+
+    return;
   }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      generateAvx512SequenceInternal(cc, form, eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
-      cc.emitEpilog(frame);
-    }
-    else {
-      generateAvx512SequenceInternal(cc, form, eax, k1, k2, k3, zmm0, zmm1, zmm2, zmm3);
-    }
-  }
-#endif
-#ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
-    Compiler& cc = *emitter.as<Compiler>();
-
-    Gp gp = cc.newGpz("gp");
-    Vec vecA = cc.newZmm("vecA");
-    Vec vecB = cc.newZmm("vecB");
-    Vec vecC = cc.newZmm("vecC");
-    Vec vecD = cc.newZmm("vecD");
-
-    KReg kA = cc.newKq("kA");
-    KReg kB = cc.newKq("kB");
-    KReg kC = cc.newKq("kC");
-
-    cc.addFunc(FuncSignature::build<void>());
-    generateAvx512SequenceInternal(cc, form, gp, kA, kB, kC, vecA, vecB, vecC, vecD);
-    cc.endFunc();
-  }
-#endif
 }
 
 template<typename EmitterFn>
@@ -5163,6 +5211,7 @@ static void benchmarkX86Function(Arch arch, uint32_t numIterations, const char* 
 #endif
 
 #ifndef ASMJIT_NO_COMPILER
+
   asmjit_perf_utils::bench<x86::Compiler>(code, arch, numIterations, "[no-asm]", instCount, [&](x86::Compiler& cc) {
     emitterFn(cc, true);
   });

@@ -98,7 +98,7 @@ static ASMJIT_INLINE_CONSTEXPR typename Internal::StdInt<sizeof(T), std::is_unsi
 
 //! A helper class that can be used to iterate over enum values.
 template<typename T, T from = (T)0, T to = T::kMaxValue>
-struct EnumValues {
+struct Enumerate {
   using ValueType = std::underlying_type_t<T>;
 
   struct Iterator {
@@ -1350,12 +1350,17 @@ struct SetNot { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y)
 struct And    { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return  x &  y; } };
 struct AndNot { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return  x & ~y; } };
 struct NotAnd { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return ~x &  y; } };
-struct Or     { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return  x |  y; } };
 struct Xor    { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return  x ^  y; } };
 struct Add    { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return  x +  y; } };
 struct Sub    { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return  x -  y; } };
 struct Min    { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return min<T>(x, y); } };
 struct Max    { template<typename T> static ASMJIT_INLINE_NODEBUG T op(T x, T y) noexcept { return max<T>(x, y); } };
+
+struct Or {
+  template<typename T> static ASMJIT_INLINE_NODEBUG T op(T a, T b) noexcept { return a | b; }
+  template<typename T> static ASMJIT_INLINE_NODEBUG T op(T a, T b, T c) noexcept { return a | b | c; }
+  template<typename T> static ASMJIT_INLINE_NODEBUG T op(T a, T b, T c, T d) noexcept { return  a | b | c | d; }
+};
 //! \endcond
 
 // Support - BitWordIterator
@@ -1455,13 +1460,22 @@ static ASMJIT_INLINE_NODEBUG void bitVectorSetBit(T* buf, size_t index, bool val
   size_t vecIndex = index / kTSizeInBits;
   size_t bitIndex = index % kTSizeInBits;
 
-  T bitMask = T(1u) << bitIndex;
-  if (value) {
-    buf[vecIndex] |= bitMask;
-  }
-  else {
-    buf[vecIndex] &= ~bitMask;
-  }
+  T clearMask = T(1u) << bitIndex;
+  T setMask = T(value) << bitIndex;
+
+  buf[vecIndex] = T((buf[vecIndex] & ~clearMask) | setMask);
+}
+
+//! Sets bit in a bit-vector `buf` at `index` to `value`.
+template<typename T>
+static ASMJIT_INLINE_NODEBUG void bitVectorOrBit(T* buf, size_t index, bool value) noexcept {
+  const size_t kTSizeInBits = bitSizeOf<T>();
+
+  size_t vecIndex = index / kTSizeInBits;
+  size_t bitIndex = index % kTSizeInBits;
+
+  T bitMask = T(value) << bitIndex;
+  buf[vecIndex] |= bitMask;
 }
 
 //! Sets bit in a bit-vector `buf` at `index` to `value`.
@@ -1826,7 +1840,7 @@ struct Array {
   //! \name Members
   //! \{
 
-  //! The underlying array data, use \ref data() to access it.
+  //! The underlying array data, use `data()` to access it.
   T _data[N];
 
   //! \}

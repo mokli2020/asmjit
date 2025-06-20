@@ -257,7 +257,7 @@ struct PrologEpilogInfo {
   Error init(const FuncFrame& frame) noexcept {
     uint32_t offset = 0;
 
-    for (RegGroup group : Support::EnumValues<RegGroup, RegGroup::kGp, RegGroup::kVec>{}) {
+    for (RegGroup group : Support::Enumerate<RegGroup, RegGroup::kGp, RegGroup::kVec>{}) {
       GroupData& data = groups[group];
 
       uint32_t n = 0;
@@ -327,7 +327,7 @@ ASMJIT_FAVOR_SIZE Error EmitHelper::emitProlog(const FuncFrame& frame) {
 
   uint32_t adjustInitialOffset = pei.sizeTotal;
 
-  for (RegGroup group : Support::EnumValues<RegGroup, RegGroup::kGp, RegGroup::kVec>{}) {
+  for (RegGroup group : Support::Enumerate<RegGroup, RegGroup::kGp, RegGroup::kVec>{}) {
     const PrologEpilogInfo::GroupData& data = pei.groups[group];
     uint32_t pairCount = data.pairCount;
 

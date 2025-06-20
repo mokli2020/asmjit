@@ -171,7 +171,8 @@ enum class RegGroup : uint8_t {
 };
 ASMJIT_DEFINE_ENUM_COMPARE(RegGroup)
 
-using RegGroupVirtValues = Support::EnumValues<RegGroup, RegGroup::kGp, RegGroup::kMaxVirt>;
+//! Used to enumerate all RegGroup values that are considered by Compiler for register allocation (group 0...kMaxVirt).
+using EnumerateVirtRegGroup = Support::Enumerate<RegGroup, RegGroup::kGp, RegGroup::kMaxVirt>;
 
 //! Operand signature is a 32-bit number describing \ref Operand and some of its payload.
 //!
@@ -528,7 +529,7 @@ struct Operand_ {
   //! Data specific to the operand type.
   //!
   //! The reason we don't use union is that we have `constexpr` constructors that construct operands and other
-  //!`constexpr` functions that return whether another Operand or something else. These cannot generally work with
+  //! `constexpr` functions that return whether another Operand or something else. These cannot generally work with
   //! unions so we also cannot use `union` if we want to be standard compliant.
   uint32_t _data[2];
 
@@ -538,15 +539,15 @@ struct Operand_ {
   //! registers it must be able to distinguish between these two. The idea is that physical registers are always
   //! limited in size, so virtual identifiers start from `kVirtIdMin` and end at `kVirtIdMax`.
   [[nodiscard]]
-  static ASMJIT_INLINE_CONSTEXPR bool isVirtId(uint32_t id) noexcept { return id - kVirtIdMin < uint32_t(kVirtIdCount); }
+  static ASMJIT_INLINE_CONSTEXPR bool isVirtId(uint32_t vRegId) noexcept { return vRegId - kVirtIdMin < uint32_t(kVirtIdCount); }
 
   //! Converts a real-id into a packed-id that can be stored in Operand.
   [[nodiscard]]
-  static ASMJIT_INLINE_CONSTEXPR uint32_t indexToVirtId(uint32_t id) noexcept { return id + kVirtIdMin; }
+  static ASMJIT_INLINE_CONSTEXPR uint32_t indexToVirtId(uint32_t index) noexcept { return index + kVirtIdMin; }
 
   //! Converts a packed-id back to real-id.
   [[nodiscard]]
-  static ASMJIT_INLINE_CONSTEXPR uint32_t virtIdToIndex(uint32_t id) noexcept { return id - kVirtIdMin; }
+  static ASMJIT_INLINE_CONSTEXPR uint32_t virtIdToIndex(uint32_t vRegId) noexcept { return vRegId - kVirtIdMin; }
 
   //! \name Construction & Destruction
   //! \{
@@ -905,7 +906,7 @@ struct Operand_ {
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isMaskReg(uint32_t regId) const noexcept { return isReg(RegType::kMask, regId); }
 
-  //! Tests whether the register is a mask register (`K` register on X86|X86_64) - alias of \ref isMask().
+  //! Tests whether the register is a mask register (`K` register on X86|X86_64) - alias of \ref isMaskReg().
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isKReg() const noexcept { return isReg(RegType::kMask); }
 
@@ -1083,7 +1084,7 @@ static_assert(sizeof(Operand) == 16, "asmjit::Operand must be exactly 16 bytes l
 //!
 //! // ... your code ...
 //!
-//! // Bind label to the current position, see `BaseEmitter::bind()`.
+//! // Bind label to the current position, see BaseEmitter::bind().
 //! a.bind(L1);
 //! ```
 class Label : public Operand {
@@ -1340,11 +1341,11 @@ public:
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR OperandSignature baseSignature() const noexcept { return _signature & kBaseSignatureMask; }
 
-  //! Tests whether the operand's base signature matches the given signature `sign`.
+  //! Tests whether the operand's base signature matches the given signature `signature`.
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool hasBaseSignature(uint32_t signature) const noexcept { return baseSignature() == signature; }
 
-  //! Tests whether the operand's base signature matches the given signature `sign`.
+  //! Tests whether the operand's base signature matches the given signature `signature`.
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool hasBaseSignature(const OperandSignature& signature) const noexcept { return baseSignature() == signature; }
 
@@ -1553,7 +1554,7 @@ public:
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isMaskReg(uint32_t regId) const noexcept { return isReg(RegType::kMask, regId); }
 
-  //! Tests whether the register is a mask register (`K` register on X86|X86_64) - alias of \ref isMask().
+  //! Tests whether the register is a mask register (`K` register on X86|X86_64) - alias of \ref isMaskReg().
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isKReg() const noexcept { return isReg(RegType::kMask); }
 
@@ -1710,8 +1711,6 @@ public:
 using BaseReg [[deprecated("Use asmjit::Reg instead of asmjit::BaseReg")]] = Reg;
 #endif // !ASMJIT_NO_DEPRECATED
 
-//! \cond
-
 //! Adds constructors and member functions to a class that implements abstract register. Abstract register is register
 //! that doesn't have type or signature yet, it's a base class like `x86::Reg` or `arm::Reg`.
 #define ASMJIT_DEFINE_ABSTRACT_REG(REG, BASE)                                            \
@@ -1764,8 +1763,6 @@ public:                                                                         
   /*! Creates a register operand having its id set to `id`. */                           \
   ASMJIT_INLINE_CONSTEXPR explicit REG(uint32_t id) noexcept                             \
     : BASE(Signature{kSignature}, id) {}
-
-//! \endcond
 
 //! Unified general purpose register (also acts as a base class for architecture specific GP registers).
 class UniGp : public Reg {
@@ -1882,7 +1879,7 @@ struct RegOnly {
   //! \name Accessors
   //! \{
 
-  //! Tests whether this ExtraReg is none (same as calling `Operand_::isNone()`).
+  //! Tests whether this ExtraReg is none (same as calling `Operand_::isNone()`.
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isNone() const noexcept { return _signature == 0; }
 

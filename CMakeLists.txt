@@ -458,8 +458,6 @@ set(ASMJIT_SRC_LIST
   asmjit/core/zonehash.h
   asmjit/core/zonelist.cpp
   asmjit/core/zonelist.h
-  asmjit/core/zonestack.cpp
-  asmjit/core/zonestack.h
   asmjit/core/zonestring.h
   asmjit/core/zonetree.cpp
   asmjit/core/zonetree.h

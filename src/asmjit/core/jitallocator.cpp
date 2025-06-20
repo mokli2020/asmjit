@@ -1231,43 +1231,29 @@ Error JitAllocator::write(Span& span, WriteFunc writeFunc, void* userData, VirtM
 // ==========================
 
 Error JitAllocator::beginWriteScope(WriteScopeData& scope, VirtMem::CachePolicy policy) noexcept {
-  scope._allocator = this;
-  scope._data[0] = size_t(policy);
+  scope.policy = policy;
+  scope.flags = 0u;
+  scope.data[0] = 0u;
+  scope.data[1] = 0u;
   return kErrorOk;
 }
 
 Error JitAllocator::endWriteScope(WriteScopeData& scope) noexcept {
-  if (ASMJIT_UNLIKELY(!scope._allocator)) {
-    return DebugUtils::errored(kErrorInvalidArgument);
-  }
-
+  DebugUtils::unused(scope);
   return kErrorOk;
 }
 
 Error JitAllocator::flushWriteScope(WriteScopeData& scope) noexcept {
-  if (ASMJIT_UNLIKELY(!scope._allocator)) {
-    return DebugUtils::errored(kErrorInvalidArgument);
-  }
-
+  DebugUtils::unused(scope);
   return kErrorOk;
 }
 
 Error JitAllocator::scopedWrite(WriteScopeData& scope, Span& span, size_t offset, const void* src, size_t size) noexcept {
-  if (ASMJIT_UNLIKELY(!scope._allocator)) {
-    return DebugUtils::errored(kErrorInvalidArgument);
-  }
-
-  VirtMem::CachePolicy policy = VirtMem::CachePolicy(scope._data[0]);
-  return scope._allocator->write(span, offset, src, size, policy);
+  return write(span, offset, src, size, scope.policy);
 }
 
 Error JitAllocator::scopedWrite(WriteScopeData& scope, Span& span, WriteFunc writeFunc, void* userData) noexcept {
-  if (ASMJIT_UNLIKELY(!scope._allocator)) {
-    return DebugUtils::errored(kErrorInvalidArgument);
-  }
-
-  VirtMem::CachePolicy policy = VirtMem::CachePolicy(scope._data[0]);
-  return scope._allocator->write(span, writeFunc, userData, policy);
+  return write(span, writeFunc, userData, scope.policy);
 }
 
 // JitAllocator - Tests
@@ -1279,8 +1265,9 @@ namespace JitAllocatorUtils {
     uint64_t* p = static_cast<uint64_t*>(p_);
     size_t n = sizeInBytes / 8u;
 
-    for (size_t i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++) {
       p[i] = pattern;
+    }
   }
 
   static bool verifyPattern64(const void* p_, uint64_t pattern, size_t sizeInBytes) noexcept {

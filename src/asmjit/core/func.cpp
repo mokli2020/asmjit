@@ -126,7 +126,7 @@ ASMJIT_FAVOR_SIZE Error FuncFrame::init(const FuncDetail& func) noexcept {
   }
 
   // Initial masks of dirty and preserved registers.
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     _dirtyRegs[group] = func.usedRegs(group);
     _preservedRegs[group] = func.preservedRegs(group);
   }
@@ -199,7 +199,7 @@ ASMJIT_FAVOR_SIZE Error FuncFrame::finalize() noexcept {
 
   // Setup stack size used to save preserved registers.
   uint32_t saveRestoreSizes[2] {};
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     saveRestoreSizes[size_t(!archTraits.hasInstPushPop(group))]
       += Support::alignUp(Support::popcnt(savedRegs(group)) * saveRestoreRegSize(group), saveRestoreAlignment(group));
   }

@@ -13,7 +13,7 @@ ASMJIT_BEGIN_NAMESPACE
 //! \{
 
 FuncArgsContext::FuncArgsContext() noexcept {
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     _workData[size_t(group)].reset();
   }
 }
@@ -27,7 +27,7 @@ ASMJIT_FAVOR_SIZE Error FuncArgsContext::initWorkData(const FuncFrame& frame, co
   _arch = arch;
 
   // Initialize `_archRegs`.
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     _workData[group]._archRegs = _constraints->availableRegs(group);
   }
 
@@ -39,7 +39,9 @@ ASMJIT_FAVOR_SIZE Error FuncArgsContext::initWorkData(const FuncFrame& frame, co
 
   // Extract information from all function arguments/assignments and build Var[] array.
   uint32_t varId = 0;
-  for (uint32_t argIndex = 0; argIndex < Globals::kMaxFuncArgs; argIndex++) {
+  uint32_t argCount = args.funcDetail()->argCount();
+
+  for (uint32_t argIndex = 0; argIndex < argCount; argIndex++) {
     for (uint32_t valueIndex = 0; valueIndex < Globals::kMaxValuePack; valueIndex++) {
       const FuncValue& dst_ = args.arg(argIndex, valueIndex);
       if (!dst_.isAssigned()) {
@@ -160,7 +162,7 @@ ASMJIT_FAVOR_SIZE Error FuncArgsContext::initWorkData(const FuncFrame& frame, co
   }
 
   // Initialize WorkData::workRegs.
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     _workData[group]._workRegs =
       (_workData[group].archRegs() & (frame.dirtyRegs(group) | ~frame.preservedRegs(group))) | _workData[group].dstRegs() | _workData[group].assignedRegs();
     _workData[group]._needsScratch = (reassignmentFlagMask >> uint32_t(group)) & 1u;
@@ -261,7 +263,7 @@ ASMJIT_FAVOR_SIZE Error FuncArgsContext::initWorkData(const FuncFrame& frame, co
 }
 
 ASMJIT_FAVOR_SIZE Error FuncArgsContext::markDstRegsDirty(FuncFrame& frame) noexcept {
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     WorkData& wd = _workData[group];
     uint32_t regs = wd.usedRegs() | wd._dstShuf;
 
@@ -285,7 +287,7 @@ ASMJIT_FAVOR_SIZE Error FuncArgsContext::markScratchRegs(FuncFrame& frame) noexc
     return kErrorOk;
 
   // Selects one dirty register per affected group that can be used as a scratch register.
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     if (Support::bitTest(groupMask, group)) {
       WorkData& wd = _workData[group];
       if (wd._needsScratch) {

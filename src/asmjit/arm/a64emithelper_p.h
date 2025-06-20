@@ -26,6 +26,10 @@ public:
 
   ASMJIT_INLINE_NODEBUG virtual ~EmitHelper() noexcept = default;
 
+  ASMJIT_INLINE void reset(BaseEmitter* emitter) noexcept {
+    _emitter = emitter;
+  }
+
   Error emitRegMove(
     const Operand_& dst_,
     const Operand_& src_, TypeId typeId, const char* comment = nullptr) override;

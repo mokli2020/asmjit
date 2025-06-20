@@ -696,6 +696,16 @@ public:
     Support::bitVectorSetBit(_data, index, value);
   }
 
+  inline void addBit(uint32_t index, bool value) noexcept {
+    ASMJIT_ASSERT(index < _size);
+    Support::bitVectorOrBit(_data, index, value);
+  }
+
+  inline void clearBit(uint32_t index) noexcept {
+    ASMJIT_ASSERT(index < _size);
+    Support::bitVectorSetBit(_data, index, false);
+  }
+
   inline void flipBit(uint32_t index) noexcept {
     ASMJIT_ASSERT(index < _size);
     Support::bitVectorFlipBit(_data, index);
@@ -866,6 +876,71 @@ public:
       ASMJIT_ASSERT(a.size() == b.size());
     }
   };
+
+  //! \}
+};
+
+//! Zone-allocated bit vector with a custom T that is used as an index in individual bit operations.
+template<typename T>
+class ZoneBitVectorT : public ZoneBitVector {
+public:
+  static_assert(sizeof(T) == sizeof(uint32_t));
+
+  ASMJIT_NONCOPYABLE(ZoneBitVectorT)
+
+  //! \name Construction & Destruction
+  //! \{
+
+  ASMJIT_INLINE_NODEBUG ZoneBitVectorT() noexcept {}
+
+  ASMJIT_INLINE_NODEBUG ZoneBitVectorT(ZoneBitVectorT&& other) noexcept
+    : ZoneBitVector(std::move(other)) {}
+
+  //! \}
+
+  //! \name Overloaded Operators
+  //! \{
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool operator==(const ZoneBitVectorT& other) const noexcept { return  equals(other); }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool operator!=(const ZoneBitVectorT& other) const noexcept { return !equals(other); }
+
+  //! \}
+
+  //! \name Utilities
+  //! \{
+
+  ASMJIT_INLINE_NODEBUG void swap(ZoneBitVectorT& other) noexcept {
+    ZoneBitVector::swap(other);
+  }
+
+  [[nodiscard]]
+  ASMJIT_INLINE bool bitAt(T index) const noexcept {
+    ASMJIT_ASSERT(uint32_t(index) < _size);
+    return Support::bitVectorGetBit(_data, uint32_t(index));
+  }
+
+  ASMJIT_INLINE void setBit(T index, bool value) noexcept {
+    ASMJIT_ASSERT(uint32_t(index) < _size);
+    Support::bitVectorSetBit(_data, uint32_t(index), value);
+  }
+
+  ASMJIT_INLINE void addBit(T index, bool value) noexcept {
+    ASMJIT_ASSERT(uint32_t(index) < _size);
+    Support::bitVectorOrBit(_data, uint32_t(index), value);
+  }
+
+  ASMJIT_INLINE void clearBit(T index) noexcept {
+    ASMJIT_ASSERT(uint32_t(index) < _size);
+    Support::bitVectorSetBit(_data, uint32_t(index), false);
+  }
+
+  ASMJIT_INLINE void flipBit(T index) noexcept {
+    ASMJIT_ASSERT(uint32_t(index) < _size);
+    Support::bitVectorFlipBit(_data, uint32_t(index));
+  }
 
   //! \}
 };

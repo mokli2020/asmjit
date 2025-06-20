@@ -523,7 +523,7 @@ public:
   //! block and a natural successor, if such block exists.
   [[nodiscard]]
   Error handleBlockWithUnknownJump(RABlock* block) noexcept {
-    RABlocks& blocks = _pass->blocks();
+    RABlockVector& blocks = _pass->blocks();
     size_t blockCount = blocks.size();
 
     // NOTE: Iterate from `1` as the first block is the entry block, we don't

@@ -87,22 +87,23 @@ class RACFGBuilder : public RACFGBuilderT<RACFGBuilder> {
 public:
   Arch _arch;
   bool _is64Bit;
-  bool _avxEnabled;
+  const EmitHelperInstructionIds& _ids;
 
   ASMJIT_INLINE_NODEBUG RACFGBuilder(X86RAPass* pass) noexcept
     : RACFGBuilderT<RACFGBuilder>(pass),
       _arch(pass->cc()->arch()),
       _is64Bit(pass->registerSize() == 8),
-      _avxEnabled(pass->avxEnabled()) {
+      _ids(pass->_emitHelper.ids()) {
   }
 
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG Compiler* cc() const noexcept { return static_cast<Compiler*>(_cc); }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t choose(uint32_t sseInst, uint32_t avxInst) const noexcept {
-    return _avxEnabled ? avxInst : sseInst;
-  }
+  ASMJIT_INLINE_NODEBUG X86RAPass* pass() const noexcept { return static_cast<X86RAPass*>(_pass); }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG const EmitHelperInstructionIds& ids() const noexcept { return _ids; }
 
   [[nodiscard]]
   Error onInst(InstNode* inst, InstControlFlow& cf, RAInstBuilder& ib) noexcept;
@@ -136,9 +137,9 @@ public:
 // ==========================
 
 Error RACFGBuilder::onInst(InstNode* inst, InstControlFlow& cf, RAInstBuilder& ib) noexcept {
+  InstId instId = inst->id();
   InstRWInfo rwInfo;
 
-  InstId instId = inst->id();
   if (Inst::isDefinedId(instId)) {
     uint32_t opCount = inst->opCount();
     const Operand* opArray = inst->operands();
@@ -161,8 +162,8 @@ Error RACFGBuilder::onInst(InstNode* inst, InstControlFlow& cf, RAInstBuilder& i
       RegMask instructionAllowedRegs = 0xFFFFFFFFu;
 
       uint32_t consecutiveOffset = 0;
-      uint32_t consecutiveLeadId = Globals::kInvalidId;
-      uint32_t consecutiveParent = Globals::kInvalidId;
+      RAWorkId consecutiveLeadId = kBadWorkId;
+      RAWorkId consecutiveParent = kBadWorkId;
 
       if (instInfo.isEvex()) {
         // EVEX instruction and VEX instructions that can be encoded with EVEX have the possibility to use 32 SIMD
@@ -267,7 +268,7 @@ Error RACFGBuilder::onInst(InstNode* inst, InstControlFlow& cf, RAInstBuilder& i
 
             if (opRwInfo.consecutiveLeadCount()) {
               // There must be a single consecutive register lead, otherwise the RW data is invalid.
-              if (consecutiveLeadId != Globals::kInvalidId) {
+              if (consecutiveLeadId != kBadWorkId) {
                 return DebugUtils::errored(kErrorInvalidState);
               }
 
@@ -297,7 +298,7 @@ Error RACFGBuilder::onInst(InstNode* inst, InstControlFlow& cf, RAInstBuilder& i
                 flags |= RATiedFlags::kUseFixed;
               }
               else if (opRwInfo.hasOpFlag(OpRWFlags::kConsecutive)) {
-                if (consecutiveLeadId == Globals::kInvalidId) {
+                if (consecutiveLeadId == kBadWorkId) {
                   return DebugUtils::errored(kErrorInvalidState);
                 }
 
@@ -315,7 +316,7 @@ Error RACFGBuilder::onInst(InstNode* inst, InstControlFlow& cf, RAInstBuilder& i
                 flags |= RATiedFlags::kOutFixed;
               }
               else if (opRwInfo.hasOpFlag(OpRWFlags::kConsecutive)) {
-                if (consecutiveLeadId == Globals::kInvalidId) {
+                if (consecutiveLeadId == kBadWorkId) {
                   return DebugUtils::errored(kErrorInvalidState);
                 }
 
@@ -661,7 +662,7 @@ Error RACFGBuilder::onBeforeInvoke(InvokeNode* invokeNode) noexcept {
               return DebugUtils::errored(kErrorInvalidAssignment);
             }
 
-            Reg dst(workReg->signature(), workReg->virtId());
+            Reg dst(workReg->signature(), workReg->vRegId());
             Mem mem;
 
             TypeId typeId = TypeUtils::scalarOf(workReg->typeId());
@@ -674,14 +675,14 @@ Error RACFGBuilder::onBeforeInvoke(InvokeNode* invokeNode) noexcept {
                 ASMJIT_PROPAGATE(_pass->useTemporaryMem(mem, 4, 4));
                 mem.setSize(4);
                 ASMJIT_PROPAGATE(cc()->fstp(mem));
-                ASMJIT_PROPAGATE(cc()->emit(choose(Inst::kIdMovss, Inst::kIdVmovss), dst.as<Vec>(), mem));
+                ASMJIT_PROPAGATE(cc()->emit(ids().movss(), dst.as<Vec>(), mem));
                 break;
 
               case TypeId::kFloat64:
                 ASMJIT_PROPAGATE(_pass->useTemporaryMem(mem, 8, 4));
                 mem.setSize(8);
                 ASMJIT_PROPAGATE(cc()->fstp(mem));
-                ASMJIT_PROPAGATE(cc()->emit(choose(Inst::kIdMovsd, Inst::kIdVmovsd), dst.as<Vec>(), mem));
+                ASMJIT_PROPAGATE(cc()->emit(ids().movsd(), dst.as<Vec>(), mem));
                 break;
 
               default:
@@ -784,7 +785,7 @@ Error RACFGBuilder::onInvoke(InvokeNode* invokeNode, RAInstBuilder& ib) noexcept
   }
 
   // Setup clobbered registers.
-  for (RegGroup group : RegGroupVirtValues{}) {
+  for (RegGroup group : EnumerateVirtRegGroup{}) {
     ib._clobbered[group] = Support::lsbMask<RegMask>(_pass->_physRegCount[group]) & ~fd.preservedRegs(group);
   }
 
@@ -822,7 +823,7 @@ Error RACFGBuilder::moveVecToPtr(InvokeNode* invokeNode, const FuncValue& arg, c
   Vec vecReg(x86VecRegSignatureBySize(argSize), src.id());
   Mem vecPtr = ptr(_pass->_sp.as<Gp>(), int32_t(argStackOffset));
 
-  uint32_t vMovInstId = choose(Inst::kIdMovaps, Inst::kIdVmovaps);
+  uint32_t vMovInstId = pass()->_emitHelper.ids().movaps();
   if (argSize > 16) {
     vMovInstId = Inst::kIdVmovaps;
   }
@@ -1069,7 +1070,7 @@ Error RACFGBuilder::moveRegToStackArg(InvokeNode* invokeNode, const FuncValue& a
     default:
       if (TypeUtils::isVec(dstTypeId) && reg.as<Reg>().isVec()) {
         stackPtr.setSize(TypeUtils::sizeOf(dstTypeId));
-        uint32_t vMovInstId = choose(Inst::kIdMovaps, Inst::kIdVmovaps);
+        uint32_t vMovInstId = pass()->_emitHelper.ids().movaps();
 
         if (TypeUtils::isVec128(dstTypeId)) {
           r0.setRegT<RegType::kVec128>(reg.id());
@@ -1138,22 +1139,22 @@ MovGpQ:
 MovMmD:
   stackPtr.setSize(4);
   r0.setRegT<RegType::kX86_Mm>(reg.id());
-  return cc()->emit(choose(Inst::kIdMovd, Inst::kIdVmovd), stackPtr, r0);
+  return cc()->emit(ids().movd(), stackPtr, r0);
 
 MovMmQ:
   stackPtr.setSize(8);
   r0.setRegT<RegType::kX86_Mm>(reg.id());
-  return cc()->emit(choose(Inst::kIdMovq, Inst::kIdVmovq), stackPtr, r0);
+  return cc()->emit(ids().movq(), stackPtr, r0);
 
 MovXmmD:
   stackPtr.setSize(4);
   r0.setRegT<RegType::kVec128>(reg.id());
-  return cc()->emit(choose(Inst::kIdMovss, Inst::kIdVmovss), stackPtr, r0);
+  return cc()->emit(ids().movss(), stackPtr, r0);
 
 MovXmmQ:
   stackPtr.setSize(8);
   r0.setRegT<RegType::kVec128>(reg.id());
-  return cc()->emit(choose(Inst::kIdMovlps, Inst::kIdVmovlps), stackPtr, r0);
+  return cc()->emit(ids().movlps(), stackPtr, r0);
 }
 
 // x86::RACFGBuilder - OnReg
@@ -1186,7 +1187,7 @@ Error RACFGBuilder::onBeforeRet(FuncRetNode* funcRet) noexcept {
           return DebugUtils::errored(kErrorInvalidAssignment);
         }
 
-        Reg src(workReg->signature(), workReg->virtId());
+        Reg src(workReg->signature(), workReg->vRegId());
         Mem mem;
 
         TypeId typeId = TypeUtils::scalarOf(workReg->typeId());
@@ -1198,14 +1199,14 @@ Error RACFGBuilder::onBeforeRet(FuncRetNode* funcRet) noexcept {
           case TypeId::kFloat32:
             ASMJIT_PROPAGATE(_pass->useTemporaryMem(mem, 4, 4));
             mem.setSize(4);
-            ASMJIT_PROPAGATE(cc()->emit(choose(Inst::kIdMovss, Inst::kIdVmovss), mem, src.as<Vec>()));
+            ASMJIT_PROPAGATE(cc()->emit(ids().movss(), mem, src.as<Vec>()));
             ASMJIT_PROPAGATE(cc()->fld(mem));
             break;
 
           case TypeId::kFloat64:
             ASMJIT_PROPAGATE(_pass->useTemporaryMem(mem, 8, 4));
             mem.setSize(8);
-            ASMJIT_PROPAGATE(cc()->emit(choose(Inst::kIdMovsd, Inst::kIdVmovsd), mem, src.as<Vec>()));
+            ASMJIT_PROPAGATE(cc()->emit(ids().movsd(), mem, src.as<Vec>()));
             ASMJIT_PROPAGATE(cc()->fld(mem));
             break;
 
@@ -1281,13 +1282,7 @@ void X86RAPass::onInit() noexcept {
     simdRegCount = 32u;
   }
 
-  bool avxEnabled = _func->frame().isAvxEnabled();
-  bool avx512Enabled = _func->frame().isAvx512Enabled();
-
-  _emitHelper._emitter = _cb;
-  _emitHelper._avxEnabled = avxEnabled || avx512Enabled;
-  _emitHelper._avx512Enabled = avx512Enabled;
-
+  _emitHelper.reset(_cb, _func->frame().isAvxEnabled(), _func->frame().isAvx512Enabled());
   _archTraits = &ArchTraits::byArch(arch);
   _physRegCount.set(RegGroup::kGp, baseRegCount);
   _physRegCount.set(RegGroup::kVec, simdRegCount);
@@ -1359,8 +1354,8 @@ static InstId transformVexToEvex(InstId instId) {
 
 ASMJIT_FAVOR_SPEED Error X86RAPass::_rewrite(BaseNode* first, BaseNode* stop) noexcept {
   uint32_t virtCount = cc()->_vRegArray.size();
-
   BaseNode* node = first;
+
   while (node != stop) {
     BaseNode* next = node->next();
     if (node->isInst()) {
@@ -1369,9 +1364,6 @@ ASMJIT_FAVOR_SPEED Error X86RAPass::_rewrite(BaseNode* first, BaseNode* stop) no
 
       Operand* operands = inst->operands();
       uint32_t opCount = inst->opCount();
-      uint32_t maxRegId = 0;
-
-      uint32_t i;
 
       // Rewrite virtual registers into physical registers.
       if (raInst) {
@@ -1381,24 +1373,29 @@ ASMJIT_FAVOR_SPEED Error X86RAPass::_rewrite(BaseNode* first, BaseNode* stop) no
 
         // If the instruction contains pass data (raInst) then it was a subject for register allocation and must be
         // rewritten to use physical regs.
-        RATiedReg* tiedRegs = raInst->tiedRegs();
+        const RATiedReg* tiedRegs = raInst->tiedRegs();
         uint32_t tiedCount = raInst->tiedCount();
+        uint32_t combinedRegIds = 0;
 
-        for (i = 0; i < tiedCount; i++) {
-          RATiedReg* tiedReg = &tiedRegs[i];
+        for (uint32_t i = 0; i < tiedCount; i++) {
+          const RATiedReg& tiedReg = tiedRegs[i];
 
-          Support::BitWordIterator<uint32_t> useIt(tiedReg->useRewriteMask());
-          uint32_t useId = tiedReg->useId();
-          while (useIt.hasNext()) {
-            maxRegId = Support::max(maxRegId, useId);
-            inst->_rewriteIdAtIndex(useIt.next(), useId);
+          Support::BitWordIterator<uint32_t> useIt(tiedReg.useRewriteMask());
+          if (useIt.hasNext()) {
+            uint32_t useId = tiedReg.useId();
+            do {
+              inst->_rewriteIdAtIndex(useIt.next(), useId);
+            } while (useIt.hasNext());
+            combinedRegIds |= useId;
           }
 
-          Support::BitWordIterator<uint32_t> outIt(tiedReg->outRewriteMask());
-          uint32_t outId = tiedReg->outId();
-          while (outIt.hasNext()) {
-            maxRegId = Support::max(maxRegId, outId);
-            inst->_rewriteIdAtIndex(outIt.next(), outId);
+          Support::BitWordIterator<uint32_t> outIt(tiedReg.outRewriteMask());
+          if (outIt.hasNext()) {
+            uint32_t outId = tiedReg.outId();
+            do {
+              inst->_rewriteIdAtIndex(outIt.next(), outId);
+            } while (outIt.hasNext());
+            combinedRegIds |= outId;
           }
         }
 
@@ -1452,7 +1449,7 @@ ASMJIT_FAVOR_SPEED Error X86RAPass::_rewrite(BaseNode* first, BaseNode* stop) no
 
         // Transform VEX instruction to EVEX when necessary.
         if (raInst->isTransformable()) {
-          if (maxRegId > 15) {
+          if (combinedRegIds >= 16u) {
             inst->setId(transformVexToEvex(inst->id()));
           }
         }
@@ -1488,7 +1485,7 @@ ASMJIT_FAVOR_SPEED Error X86RAPass::_rewrite(BaseNode* first, BaseNode* stop) no
       }
 
       // Rewrite stack slot addresses.
-      for (i = 0; i < opCount; i++) {
+      for (uint32_t i = 0; i < opCount; i++) {
         Operand& op = operands[i];
         if (op.isMem()) {
           BaseMem& mem = op.as<BaseMem>();
@@ -1523,7 +1520,7 @@ Next:
 // x86::X86RAPass - OnEmit
 // =======================
 
-Error X86RAPass::emitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
+Error X86RAPass::emitMove(RAWorkId workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
   RAWorkReg* wReg = workRegById(workId);
   Reg dst(wReg->signature(), dstPhysId);
   Reg src(wReg->signature(), srcPhysId);
@@ -1541,7 +1538,7 @@ Error X86RAPass::emitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysI
   return _emitHelper.emitRegMove(dst, src, wReg->typeId(), comment);
 }
 
-Error X86RAPass::emitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept {
+Error X86RAPass::emitSwap(RAWorkId aWorkId, uint32_t aPhysId, RAWorkId bWorkId, uint32_t bPhysId) noexcept {
   RAWorkReg* waReg = workRegById(aWorkId);
   RAWorkReg* wbReg = workRegById(bWorkId);
 
@@ -1561,7 +1558,7 @@ Error X86RAPass::emitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, 
   return cc()->emit(Inst::kIdXchg, Reg(sign, aPhysId), Reg(sign, bPhysId));
 }
 
-Error X86RAPass::emitLoad(uint32_t workId, uint32_t dstPhysId) noexcept {
+Error X86RAPass::emitLoad(RAWorkId workId, uint32_t dstPhysId) noexcept {
   RAWorkReg* wReg = workRegById(workId);
   Reg dstReg(wReg->signature(), dstPhysId);
   BaseMem srcMem(workRegAsMem(wReg));
@@ -1579,7 +1576,7 @@ Error X86RAPass::emitLoad(uint32_t workId, uint32_t dstPhysId) noexcept {
   return _emitHelper.emitRegMove(dstReg, srcMem, wReg->typeId(), comment);
 }
 
-Error X86RAPass::emitSave(uint32_t workId, uint32_t srcPhysId) noexcept {
+Error X86RAPass::emitSave(RAWorkId workId, uint32_t srcPhysId) noexcept {
   RAWorkReg* wReg = workRegById(workId);
   BaseMem dstMem(workRegAsMem(wReg));
   Reg srcReg(wReg->signature(), srcPhysId);
@@ -1646,7 +1643,7 @@ Error X86RAPass::emitPreCall(InvokeNode* invokeNode) noexcept {
             if (arg.isReg() && RegUtils::groupOf(arg.regType()) == RegGroup::kVec) {
               Gp dst = gpq(fd.callConv().passedOrder(RegGroup::kGp)[argIndex]);
               Vec src = xmm(arg.regId());
-              ASMJIT_PROPAGATE(cc()->emit(choose(Inst::kIdMovq, Inst::kIdVmovq), dst, src));
+              ASMJIT_PROPAGATE(cc()->emit(_emitHelper.ids().movq(), dst, src));
             }
           }
         }

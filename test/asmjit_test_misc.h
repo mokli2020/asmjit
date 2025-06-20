@@ -160,6 +160,71 @@ static void generateSseAlphaBlendInternal(
 static void generateSseAlphaBlend(asmjit::BaseEmitter& emitter, bool emitPrologEpilog) {
   using namespace asmjit::x86;
 
+#ifndef ASMJIT_NO_COMPILER
+  if (emitter.isCompiler()) {
+    Compiler& cc = *emitter.as<Compiler>();
+
+    Gp dst = cc.newIntPtr("dst");
+    Gp src = cc.newIntPtr("src");
+    Gp i = cc.newIntPtr("i");
+    Gp j = cc.newIntPtr("j");
+
+    Vec v0 = cc.newXmm("v0");
+    Vec v1 = cc.newXmm("v1");
+    Vec v2 = cc.newXmm("v2");
+    Vec v3 = cc.newXmm("v3");
+    Vec v4 = cc.newXmm("v4");
+    Vec v5 = cc.newXmm("v5");
+    Vec v6 = cc.newXmm("v6");
+    Vec v7 = cc.newXmm("v7");
+
+    FuncNode* funcNode = cc.addFunc(FuncSignature::build<void, void*, const void*, size_t>());
+    funcNode->setArg(0, dst);
+    funcNode->setArg(1, src);
+    funcNode->setArg(2, i);
+    generateSseAlphaBlendInternal(cc, dst, src, i, j, v0, v1, v2, v3, v4, v5, v6, v7);
+    cc.endFunc();
+
+    return;
+  }
+#endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    Builder& cc = *emitter.as<Builder>();
+
+    x86::Gp dst = cc.zax();
+    x86::Gp src = cc.zcx();
+    x86::Gp i = cc.zdx();
+    x86::Gp j = cc.zdi();
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(dst, src, i, j);
+      frame.addDirtyRegs(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
+
+      FuncArgsAssignment args(&func);
+      args.assignAll(dst, src, i);
+      args.updateFuncFrame(frame);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      cc.emitArgsAssignment(frame, args);
+      generateSseAlphaBlendInternal(cc, dst, src, i, j, xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
+      cc.emitEpilog(frame);
+    }
+    else {
+      generateSseAlphaBlendInternal(cc, dst, src, i, j, xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
+    }
+
+    return;
+  }
+#endif
+
   if (emitter.isAssembler()) {
     Assembler& cc = *emitter.as<Assembler>();
 
@@ -190,66 +255,9 @@ static void generateSseAlphaBlend(asmjit::BaseEmitter& emitter, bool emitPrologE
     else {
       generateSseAlphaBlendInternal(cc, dst, src, i, j, xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
     }
+
+    return;
   }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    Builder& cc = *emitter.as<Builder>();
-
-    x86::Gp dst = cc.zax();
-    x86::Gp src = cc.zcx();
-    x86::Gp i = cc.zdx();
-    x86::Gp j = cc.zdi();
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(dst, src, i, j);
-      frame.addDirtyRegs(xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
-
-      FuncArgsAssignment args(&func);
-      args.assignAll(dst, src, i);
-      args.updateFuncFrame(frame);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      cc.emitArgsAssignment(frame, args);
-      generateSseAlphaBlendInternal(cc, dst, src, i, j, xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
-      cc.emitEpilog(frame);
-    }
-    else {
-      generateSseAlphaBlendInternal(cc, dst, src, i, j, xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7);
-    }
-  }
-#endif
-#ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
-    Compiler& cc = *emitter.as<Compiler>();
-
-    Gp dst = cc.newIntPtr("dst");
-    Gp src = cc.newIntPtr("src");
-    Gp i = cc.newIntPtr("i");
-    Gp j = cc.newIntPtr("j");
-
-    Vec v0 = cc.newXmm("v0");
-    Vec v1 = cc.newXmm("v1");
-    Vec v2 = cc.newXmm("v2");
-    Vec v3 = cc.newXmm("v3");
-    Vec v4 = cc.newXmm("v4");
-    Vec v5 = cc.newXmm("v5");
-    Vec v6 = cc.newXmm("v6");
-    Vec v7 = cc.newXmm("v7");
-
-    FuncNode* funcNode = cc.addFunc(FuncSignature::build<void, void*, const void*, size_t>());
-    funcNode->setArg(0, dst);
-    funcNode->setArg(1, src);
-    funcNode->setArg(2, i);
-    generateSseAlphaBlendInternal(cc, dst, src, i, j, v0, v1, v2, v3, v4, v5, v6, v7);
-    cc.endFunc();
-  }
-#endif
 }
 
 } // {asmtest}

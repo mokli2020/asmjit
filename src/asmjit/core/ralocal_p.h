@@ -81,7 +81,7 @@ public:
   //! \{
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG RAWorkReg* workRegById(uint32_t workId) const noexcept { return _pass->workRegById(workId); }
+  ASMJIT_INLINE_NODEBUG RAWorkReg* workRegById(RAWorkId workId) const noexcept { return _pass->workRegById(workId); }
 
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG PhysToWorkMap* physToWorkMap() const noexcept { return _curAssignment.physToWorkMap(); }
@@ -141,7 +141,7 @@ public:
   //! and `dstWorkToPhysMap`. This mode is only used before conditional jumps that already have assignment to generate
   //! a code sequence that is always executed regardless of the flow.
   [[nodiscard]]
-  Error switchToAssignment(PhysToWorkMap* dstPhysToWorkMap, const ZoneBitVector& liveIn, bool dstReadOnly, bool tryMode) noexcept;
+  Error switchToAssignment(PhysToWorkMap* dstPhysToWorkMap, const RAWorkIdBitSet& liveIn, bool dstReadOnly, bool tryMode) noexcept;
 
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG Error spillRegsBeforeEntry(RABlock* block) noexcept {
@@ -166,7 +166,7 @@ public:
   Error allocBranch(InstNode* node, RABlock* target, RABlock* cont) noexcept;
 
   [[nodiscard]]
-  Error allocJumpTable(InstNode* node, const RABlocks& targets, RABlock* cont) noexcept;
+  Error allocJumpTable(InstNode* node, const RABlockVector& targets, RABlock* cont) noexcept;
 
   //! \}
 
@@ -184,7 +184,7 @@ public:
   }
 
   [[nodiscard]]
-  ASMJIT_INLINE uint32_t calculateSpillCost(RegGroup group, uint32_t workId, uint32_t assignedId) const noexcept {
+  ASMJIT_INLINE uint32_t calculateSpillCost(RegGroup group, RAWorkId workId, uint32_t assignedId) const noexcept {
     RAWorkReg* workReg = workRegById(workId);
     uint32_t cost = costByFrequency(workReg->liveStats().freq());
 
@@ -209,7 +209,7 @@ public:
 
   //! Decides on register assignment.
   [[nodiscard]]
-  uint32_t decideOnAssignment(RegGroup group, uint32_t workId, uint32_t assignedId, RegMask allocableRegs) const noexcept;
+  uint32_t decideOnAssignment(RegGroup group, RAWorkId workId, uint32_t assignedId, RegMask allocableRegs) const noexcept;
 
   //! Decides on whether to MOVE or SPILL the given WorkReg, because it's allocated in a physical register that have
   //! to be used by another WorkReg.
@@ -218,11 +218,11 @@ public:
   //! spilled, or a valid physical register ID, which means that the register should be moved to that physical register
   //! instead.
   [[nodiscard]]
-  uint32_t decideOnReassignment(RegGroup group, uint32_t workId, uint32_t assignedId, RegMask allocableRegs, RAInst* raInst) const noexcept;
+  uint32_t decideOnReassignment(RegGroup group, RAWorkId workId, uint32_t assignedId, RegMask allocableRegs, RAInst* raInst) const noexcept;
 
   //! Decides on best spill given a register mask `spillableRegs`
   [[nodiscard]]
-  uint32_t decideOnSpillFor(RegGroup group, uint32_t workId, RegMask spillableRegs, uint32_t* spillWorkId) const noexcept;
+  uint32_t decideOnSpillFor(RegGroup group, RAWorkId workId, RegMask spillableRegs, RAWorkId* spillWorkId) const noexcept;
 
   //! \}
 
@@ -232,7 +232,7 @@ public:
   //! Emits a move between a destination and source register, and fixes the
   //! register assignment.
   [[nodiscard]]
-  inline Error onMoveReg(RegGroup group, uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
+  inline Error onMoveReg(RegGroup group, RAWorkId workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
     if (dstPhysId == srcPhysId) {
       return kErrorOk;
     }
@@ -245,7 +245,7 @@ public:
   //!
   //! \note Target must support this operation otherwise this would ASSERT.
   [[nodiscard]]
-  inline Error onSwapReg(RegGroup group, uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept {
+  inline Error onSwapReg(RegGroup group, RAWorkId aWorkId, uint32_t aPhysId, RAWorkId bWorkId, uint32_t bPhysId) noexcept {
     _curAssignment.swap(group, aWorkId, aPhysId, bWorkId, bPhysId);
     return _pass->emitSwap(aWorkId, aPhysId, bWorkId, bPhysId);
   }
@@ -253,7 +253,7 @@ public:
   //! Emits a load from [VirtReg/WorkReg]'s spill slot to a physical register
   //! and makes it assigned and clean.
   [[nodiscard]]
-  inline Error onLoadReg(RegGroup group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onLoadReg(RegGroup group, RAWorkId workId, uint32_t physId) noexcept {
     _curAssignment.assign(group, workId, physId, RAAssignment::kClean);
     return _pass->emitLoad(workId, physId);
   }
@@ -261,7 +261,7 @@ public:
   //! Emits a save a physical register to a [VirtReg/WorkReg]'s spill slot,
   //! keeps it assigned, and makes it clean.
   [[nodiscard]]
-  inline Error onSaveReg(RegGroup group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onSaveReg(RegGroup group, RAWorkId workId, uint32_t physId) noexcept {
     ASMJIT_ASSERT(_curAssignment.workToPhysId(group, workId) == physId);
     ASMJIT_ASSERT(_curAssignment.physToWorkId(group, physId) == workId);
 
@@ -271,14 +271,14 @@ public:
 
   //! Assigns a register, the content of it is undefined at this point.
   [[nodiscard]]
-  inline Error onAssignReg(RegGroup group, uint32_t workId, uint32_t physId, bool dirty) noexcept {
+  inline Error onAssignReg(RegGroup group, RAWorkId workId, uint32_t physId, bool dirty) noexcept {
     _curAssignment.assign(group, workId, physId, dirty);
     return kErrorOk;
   }
 
   //! Spills a variable/register, saves the content to the memory-home if modified.
   [[nodiscard]]
-  inline Error onSpillReg(RegGroup group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onSpillReg(RegGroup group, RAWorkId workId, uint32_t physId) noexcept {
     if (_curAssignment.isPhysDirty(group, physId))
       ASMJIT_PROPAGATE(onSaveReg(group, workId, physId));
     onKillReg(group, workId, physId);
@@ -286,12 +286,12 @@ public:
   }
 
   [[nodiscard]]
-  inline Error onDirtyReg(RegGroup group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onDirtyReg(RegGroup group, RAWorkId workId, uint32_t physId) noexcept {
     _curAssignment.makeDirty(group, workId, physId);
     return kErrorOk;
   }
 
-  inline void onKillReg(RegGroup group, uint32_t workId, uint32_t physId) noexcept {
+  inline void onKillReg(RegGroup group, RAWorkId workId, uint32_t physId) noexcept {
     _curAssignment.unassign(group, workId, physId);
   }
 

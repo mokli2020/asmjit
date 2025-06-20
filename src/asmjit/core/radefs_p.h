@@ -25,12 +25,12 @@ ASMJIT_BEGIN_NAMESPACE
 #ifndef ASMJIT_NO_LOGGING
 # define ASMJIT_RA_LOG_FORMAT(...)  \
   do {                              \
-    if (logger)                     \
+    if (ASMJIT_UNLIKELY(logger))    \
       logger->logf(__VA_ARGS__);    \
   } while (0)
 # define ASMJIT_RA_LOG_COMPLEX(...) \
   do {                              \
-    if (logger) {                   \
+    if (ASMJIT_UNLIKELY(logger)) {  \
       __VA_ARGS__                   \
     }                               \
   } while (0)
@@ -39,13 +39,29 @@ ASMJIT_BEGIN_NAMESPACE
 # define ASMJIT_RA_LOG_COMPLEX(...) ((void)0)
 #endif
 
+//! Basic block identifier (RA).
+enum class RABlockId : uint32_t {};
+
+//! Work register identifier (RA).
+//!
+//! Work register is an actual virtual register that is used by the function and subject to register allocation.
+enum class RAWorkId : uint32_t {};
+
+//! Invalid work register identifier (no work register can have this id).
+static constexpr RAWorkId kBadWorkId = RAWorkId(Globals::kInvalidId);
+
+static constexpr RABlockId kBadBlockId = RABlockId(Globals::kInvalidId);
+
+using RABlockIdBitSet = ZoneBitVectorT<RABlockId>;
+using RAWorkIdBitSet = ZoneBitVectorT<RAWorkId>;
+
 class BaseRAPass;
 class RABlock;
 class BaseNode;
 struct RAStackSlot;
 
-using RABlocks = ZoneVector<RABlock*>;
-using RAWorkRegs = ZoneVector<RAWorkReg*>;
+using RABlockVector = ZoneVector<RABlock*>;
+using RAWorkRegVector = ZoneVector<RAWorkReg*>;
 
 //! Maximum number of consecutive registers aggregated from all supported backends.
 static constexpr uint32_t kMaxConsecutiveRegs = 4;
@@ -831,14 +847,19 @@ enum class RATiedFlags : uint32_t {
   // Consecutive Flags / Data
   // ------------------------
 
+  //! Has consecutive registers in USE slots.
   kUseConsecutive = 0x00000400u,
+  //! Has consecutive registers in OUT slots.
   kOutConsecutive = 0x00000800u,
+  //! This is a consecutive lead (the first that is consecutive).
   kLeadConsecutive = 0x00001000u,
+  //! Consecutive data payload.
   kConsecutiveData = 0x00006000u,
 
   // Other Constraints
   // -----------------
 
+  //! This must be allocated to a unique physical register, not shared with other USE slots.
   kUnique = 0x00008000u,
 
   // Liveness Flags
@@ -889,9 +910,9 @@ struct RATiedReg {
   //! \{
 
   //! WorkReg id.
-  uint32_t _workId;
+  RAWorkId _workId;
   //! WorkReg id that is an immediate consecutive parent of this register, or Globals::kInvalidId if it has no parent.
-  uint32_t _consecutiveParent;
+  RAWorkId _consecutiveParent;
   //! Allocation flags.
   RATiedFlags _flags;
 
@@ -940,7 +961,7 @@ struct RATiedReg {
   //! \name Construction & Destruction
   //! \{
 
-  inline void init(uint32_t workId, RATiedFlags flags, RegMask useRegMask, uint32_t useId, uint32_t useRewriteMask, RegMask outRegMask, uint32_t outId, uint32_t outRewriteMask, uint32_t rmSize = 0, uint32_t consecutiveParent = Globals::kInvalidId) noexcept {
+  inline void init(RAWorkId workId, RATiedFlags flags, RegMask useRegMask, uint32_t useId, uint32_t useRewriteMask, RegMask outRegMask, uint32_t outId, uint32_t outRewriteMask, uint32_t rmSize = 0, RAWorkId consecutiveParent = kBadWorkId) noexcept {
     _workId = workId;
     _consecutiveParent = consecutiveParent;
     _flags = flags;
@@ -961,13 +982,13 @@ struct RATiedReg {
 
   //! Returns the associated WorkReg id.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t workId() const noexcept { return _workId; }
+  ASMJIT_INLINE_NODEBUG RAWorkId workId() const noexcept { return _workId; }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG bool hasConsecutiveParent() const noexcept { return _consecutiveParent != Globals::kInvalidId; }
+  ASMJIT_INLINE_NODEBUG bool hasConsecutiveParent() const noexcept { return _consecutiveParent != kBadWorkId; }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t consecutiveParent() const noexcept { return _consecutiveParent; }
+  ASMJIT_INLINE_NODEBUG RAWorkId consecutiveParent() const noexcept { return _consecutiveParent; }
 
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG uint32_t consecutiveData() const noexcept { return consecutiveDataFromFlags(_flags); }
@@ -1166,7 +1187,7 @@ public:
   //! \name Constants
   //! \{
 
-  static inline constexpr uint32_t kIdNone = 0xFFFFFFFFu;
+  static inline constexpr RAWorkId kIdNone = RAWorkId(0xFFFFFFFFu);
   static inline constexpr uint32_t kNoArgIndex = 0xFFu;
 
   //! \}
@@ -1175,9 +1196,9 @@ public:
   //! \{
 
   //! RAPass specific ID used during analysis and allocation.
-  uint32_t _workId = 0;
-  //! Copy of ID used by \ref VirtReg.
-  uint32_t _virtId = 0;
+  RAWorkId _workId {};
+  //! Copy of virtual register id used by \ref VirtReg.
+  uint32_t _vRegId = 0;
 
   //! Permanent association with \ref VirtReg.
   VirtReg* _virtReg = nullptr;
@@ -1195,7 +1216,7 @@ public:
   //!
   //! If this register is used by multiple basic blocks, the id would always be `kIdNone`. However, if the register
   //! lives in a single basic block, the id would be a valid block id, and `_flags` would not contain `kMultipleBasicBlocks`.
-  uint32_t _singleBasicBlockId = kIdNone;
+  RABlockId _singleBasicBlockId = kBadBlockId;
 
   //! Constains all USE ids collected from all instructions.
   //!
@@ -1253,9 +1274,9 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  ASMJIT_INLINE_NODEBUG RAWorkReg(VirtReg* vReg, uint32_t workId) noexcept
+  ASMJIT_INLINE_NODEBUG RAWorkReg(VirtReg* vReg, RAWorkId workId) noexcept
     : _workId(workId),
-      _virtId(vReg->id()),
+      _vRegId(vReg->id()),
       _virtReg(vReg),
       _signature(vReg->signature()),
       _hintRegId(uint8_t(vReg->homeIdHint())) {}
@@ -1266,10 +1287,10 @@ public:
   //! \{
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t workId() const noexcept { return _workId; }
+  ASMJIT_INLINE_NODEBUG RAWorkId workId() const noexcept { return _workId; }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t virtId() const noexcept { return _virtId; }
+  ASMJIT_INLINE_NODEBUG uint32_t vRegId() const noexcept { return _vRegId; }
 
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG const char* name() const noexcept { return _virtReg->name(); }
@@ -1297,19 +1318,19 @@ public:
   ASMJIT_INLINE_NODEBUG bool isWithinSingleBasicBlock() const noexcept { return !hasFlag(RAWorkRegFlags::kMultipleBasicBlocks); }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t singleBasicBlockId() const noexcept { return _singleBasicBlockId; }
+  ASMJIT_INLINE_NODEBUG RABlockId singleBasicBlockId() const noexcept { return _singleBasicBlockId; }
 
   //! Called when this register appeared in a basic block having `blockId`.
   //!
   //! This function just sets the basic block of this work register, and then later, when this register is processed
   //! again it's compared with all other basic blocks it appears in so the flag `kMultipleBasicBlocks` can be properly
   //! set when the compared basic blocks differ.
-  ASMJIT_INLINE_NODEBUG void assignBasicBlock(uint32_t blockId) noexcept { _singleBasicBlockId = blockId; }
+  ASMJIT_INLINE_NODEBUG void assignBasicBlock(RABlockId blockId) noexcept { _singleBasicBlockId = blockId; }
 
   //! Marks this register as using multiple basic blocks, which means reseting the single basic block identifier and
   //! adding `kMultipleBasicBlocks` flag.
   ASMJIT_INLINE_NODEBUG void markUseOfMultipleBasicBlocks() noexcept {
-    _singleBasicBlockId = Globals::kInvalidId;
+    _singleBasicBlockId = kBadBlockId;
     addFlags(RAWorkRegFlags::kMultipleBasicBlocks);
   }
 
@@ -1456,11 +1477,12 @@ public:
   ASMJIT_INLINE_NODEBUG const ZoneBitVector& immediateConsecutives() const noexcept { return _immediateConsecutives; }
 
   [[nodiscard]]
-  inline Error addImmediateConsecutive(ZoneAllocator* allocator, uint32_t workId) noexcept {
-    if (_immediateConsecutives.size() <= workId)
-      ASMJIT_PROPAGATE(_immediateConsecutives.resize(allocator, workId + 1));
+  inline Error addImmediateConsecutive(ZoneAllocator* allocator, RAWorkId workId) noexcept {
+    if (_immediateConsecutives.size() <= uint32_t(workId)) {
+      ASMJIT_PROPAGATE(_immediateConsecutives.resize(allocator, uint32_t(workId) + 1u));
+    }
 
-    _immediateConsecutives.setBit(workId, true);
+    _immediateConsecutives.setBit(uint32_t(workId), true);
     return kErrorOk;
   }
 

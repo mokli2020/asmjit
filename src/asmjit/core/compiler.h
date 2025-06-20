@@ -161,10 +161,10 @@ public:
   //! \note This version accepts a snprintf() format `fmt` followed by a variadic arguments.
   ASMJIT_API Error _newRegFmt(Reg* ASMJIT_NONNULL(out), const Reg& ref, const char* fmt, ...);
 
-  //! Tests whether the given `id` is a valid virtual register id.
+  //! Tests whether the given `vRegId` is a valid virtual register id.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG bool isVirtIdValid(uint32_t id) const noexcept {
-    uint32_t index = Operand::virtIdToIndex(id);
+  ASMJIT_INLINE_NODEBUG bool isVirtIdValid(uint32_t vRegId) const noexcept {
+    uint32_t index = Operand::virtIdToIndex(vRegId);
     return index < _vRegArray.size();
   }
 
@@ -174,11 +174,11 @@ public:
     return isVirtIdValid(reg.id());
   }
 
-  //! Returns \ref VirtReg associated with the given `id`.
+  //! Returns \ref VirtReg associated with the given `vRegId`.
   [[nodiscard]]
-  inline VirtReg* virtRegById(uint32_t id) const noexcept {
-    ASMJIT_ASSERT(isVirtIdValid(id));
-    return _vRegArray[Operand::virtIdToIndex(id)];
+  inline VirtReg* virtRegById(uint32_t vRegId) const noexcept {
+    ASMJIT_ASSERT(isVirtIdValid(vRegId));
+    return _vRegArray[Operand::virtIdToIndex(vRegId)];
   }
 
   //! Returns \ref VirtReg associated with the given `reg`.
@@ -204,8 +204,8 @@ public:
   //! \note `name` can be used to give the stack a name, for debugging purposes.
   ASMJIT_API Error _newStack(BaseMem* ASMJIT_NONNULL(out), uint32_t size, uint32_t alignment, const char* name = nullptr);
 
-  //! Updates the stack size of a stack created by `_newStack()` by its `virtId`.
-  ASMJIT_API Error setStackSize(uint32_t virtId, uint32_t newSize, uint32_t newAlignment = 0);
+  //! Updates the stack size of a stack created by `_newStack()` by its `vRegId`.
+  ASMJIT_API Error setStackSize(uint32_t vRegId, uint32_t newSize, uint32_t newAlignment = 0);
 
   //! Updates the stack size of a stack created by `_newStack()`.
   ASMJIT_INLINE_NODEBUG Error setStackSize(const BaseMem& mem, uint32_t newSize, uint32_t newAlignment = 0) {

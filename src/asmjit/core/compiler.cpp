@@ -407,8 +407,8 @@ Error BaseCompiler::_newStack(BaseMem* out, uint32_t size, uint32_t alignment, c
   return kErrorOk;
 }
 
-Error BaseCompiler::setStackSize(uint32_t virtId, uint32_t newSize, uint32_t newAlignment) {
-  if (!isVirtIdValid(virtId)) {
+Error BaseCompiler::setStackSize(uint32_t vRegId, uint32_t newSize, uint32_t newAlignment) {
+  if (!isVirtIdValid(vRegId)) {
     return DebugUtils::errored(kErrorInvalidVirtId);
   }
 
@@ -420,7 +420,7 @@ Error BaseCompiler::setStackSize(uint32_t virtId, uint32_t newSize, uint32_t new
     newAlignment = 64u;
   }
 
-  VirtReg* vReg = virtRegById(virtId);
+  VirtReg* vReg = virtRegById(vRegId);
   if (newSize) {
     vReg->_virtSize = newSize;
   }

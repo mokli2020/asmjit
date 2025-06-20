@@ -91,11 +91,11 @@ public:
   //! \name Emit Helpers
   //! \{
 
-  Error emitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;
-  Error emitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept override;
+  Error emitMove(RAWorkId workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;
+  Error emitSwap(RAWorkId aWorkId, uint32_t aPhysId, RAWorkId bWorkId, uint32_t bPhysId) noexcept override;
 
-  Error emitLoad(uint32_t workId, uint32_t dstPhysId) noexcept override;
-  Error emitSave(uint32_t workId, uint32_t srcPhysId) noexcept override;
+  Error emitLoad(RAWorkId workId, uint32_t dstPhysId) noexcept override;
+  Error emitSave(RAWorkId workId, uint32_t srcPhysId) noexcept override;
 
   Error emitJump(const Label& label) noexcept override;
   Error emitPreCall(InvokeNode* invokeNode) noexcept override;

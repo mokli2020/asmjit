@@ -57,20 +57,10 @@ public:
   ASMJIT_INLINE_NODEBUG EmitHelper* emitHelper() noexcept { return &_emitHelper; }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG bool avxEnabled() const noexcept { return _emitHelper._avxEnabled; }
+  ASMJIT_INLINE_NODEBUG bool isAvxEnabled() const noexcept { return _emitHelper.isAvxEnabled(); }
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG bool avx512Enabled() const noexcept { return _emitHelper._avx512Enabled; }
-
-  //! \}
-
-  //! \name Utilities
-  //! \{
-
-  [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG InstId choose(InstId sseInstId, InstId avxInstId) noexcept {
-    return avxEnabled() ? avxInstId : sseInstId;
-  }
+  ASMJIT_INLINE_NODEBUG bool isAvx512Enabled() const noexcept { return _emitHelper.isAvx512Enabled(); }
 
   //! \}
 
@@ -84,11 +74,11 @@ public:
 
   Error _rewrite(BaseNode* first, BaseNode* stop) noexcept override;
 
-  Error emitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;
-  Error emitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept override;
+  Error emitMove(RAWorkId workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;
+  Error emitSwap(RAWorkId aWorkId, uint32_t aPhysId, RAWorkId bWorkId, uint32_t bPhysId) noexcept override;
 
-  Error emitLoad(uint32_t workId, uint32_t dstPhysId) noexcept override;
-  Error emitSave(uint32_t workId, uint32_t srcPhysId) noexcept override;
+  Error emitLoad(RAWorkId workId, uint32_t dstPhysId) noexcept override;
+  Error emitSave(RAWorkId workId, uint32_t srcPhysId) noexcept override;
 
   Error emitJump(const Label& label) noexcept override;
   Error emitPreCall(InvokeNode* invokeNode) noexcept override;

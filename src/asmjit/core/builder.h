@@ -202,11 +202,11 @@ public:
   ZoneAllocator _allocator;
 
   //! Array of `Pass` objects.
-  ZoneVector<Pass*> _passes {};
+  ZoneVector<Pass*> _passes;
   //! Maps section indexes to `LabelNode` nodes.
-  ZoneVector<SectionNode*> _sectionNodes {};
+  ZoneVector<SectionNode*> _sectionNodes;
   //! Maps label indexes to `LabelNode` nodes.
-  ZoneVector<LabelNode*> _labelNodes {};
+  ZoneVector<LabelNode*> _labelNodes;
 
   //! Current node (cursor).
   BaseNode* _cursor = nullptr;
@@ -231,6 +231,7 @@ public:
   //! \name Node Management
   //! \{
 
+  //! Returns first and last node of Builder/Compiler wrapped in \ref NodeList.
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG NodeList nodeList() const noexcept { return _nodeList; }
 
@@ -935,7 +936,7 @@ public:
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG InstOptions options() const noexcept { return _baseInst.options(); }
 
-  //! Tests whether instruction has the given \option` set/enabled.
+  //! Tests whether instruction has the given `option` set/enabled.
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG bool hasOption(InstOptions option) const noexcept { return _baseInst.hasOption(option); }
 
@@ -1107,7 +1108,7 @@ public:
   //! \name Rewriting
   //! \{
 
-  //! Returns uint32_t[] view that represents BaseInst::RegOnly and instruction operands.
+  //! Returns `uint32_t[]` view that represents BaseInst::RegOnly and instruction operands.
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG uint32_t* _getRewriteArray() noexcept { return &_baseInst._extraReg._id; }
 
@@ -1120,8 +1121,8 @@ public:
 
   //! Returns a rewrite index of the given pointer to `id`.
   //!
-  //! This function returns a value that can be then passed to `\ref _rewriteIdAtIndex() function. It can address
-  //! any id from any operand that is used by the instruction in addition to \ref BaseInst::regOnly field, which
+  //! This function returns a value that can be then passed to \ref _rewriteIdAtIndex() function. It can address
+  //! any id from any operand that is used by the instruction in addition to \ref BaseInst::extraReg field, which
   //! can also be used by the register allocator.
   [[nodiscard]]
   inline uint32_t _getRewriteIndex(const uint32_t* id) const noexcept {

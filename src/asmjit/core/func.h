@@ -1737,7 +1737,7 @@ public:
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG const FuncDetail* funcDetail() const noexcept { return _funcDetail; }
 
-  //! Associates \ref FuncDetails with this `FuncArgsAssignment`.
+  //! Associates \ref FuncDetail with this `FuncArgsAssignment`.
   ASMJIT_INLINE_NODEBUG void setFuncDetail(const FuncDetail* fd) noexcept { _funcDetail = fd; }
 
   [[nodiscard]]

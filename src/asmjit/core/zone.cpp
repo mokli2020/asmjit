@@ -39,9 +39,9 @@ void Zone::_init(size_t blockSize, const Support::Temporary* temporary) noexcept
 
   _currentBlockSizeShift = uint8_t(blockSizeShift);
   _minimumBlockSizeShift = uint8_t(blockSizeShift);
-  _maximumBlockSizeShift = uint8_t(25); // (1 << 25) Equals 32 MiB blocks (should be enough for all cases)
+  _maximumBlockSizeShift = uint8_t(26); // (1 << 26) Equals 64 MiB blocks.
   _hasStaticBlock = uint8_t(temporary != nullptr);
-  _reserved = uint8_t(0u);
+  _unusedByteCount = 0u;
 
   // Setup the first [temporary] block, if necessary.
   if (temporary) {
@@ -86,10 +86,15 @@ void Zone::reset(ResetPolicy resetPolicy) noexcept {
   }
 
   Zone_assignBlock(this, first);
+  _unusedByteCount = 0u;
 }
 
 // Zone - Alloc
 // ============
+
+static ASMJIT_INLINE uint32_t Zone_getUnusedByteCount(Zone::Block* block, const uint8_t* ptr) noexcept {
+  return uint32_t(size_t(block->end() - ptr));
+}
 
 void* Zone::_alloc(size_t size) noexcept {
   ASMJIT_ASSERT(Support::isAligned(size, Globals::kZoneAlignment));
@@ -106,6 +111,7 @@ void* Zone::_alloc(size_t size) noexcept {
 
   Block* curBlock = _block;
   Block* next = curBlock->next;
+  uint32_t unusedByteCount = Zone_getUnusedByteCount(curBlock, _ptr);
 
   // If the `Zone` has been soft-reset the current block doesn't have to be the last one. Check if there is a block
   // that can be used instead of allocating a new one. If there is a `next` block it's completely unused, we don't
@@ -118,6 +124,7 @@ void* Zone::_alloc(size_t size) noexcept {
       _block = next;
       _ptr = ptr + size;
       _end = end;
+      _unusedByteCount += unusedByteCount;
 
       ASMJIT_ASSERT(_ptr <= _end);
       return static_cast<void*>(ptr);
@@ -175,6 +182,7 @@ void* Zone::_alloc(size_t size) noexcept {
   _end = end;
   _block = newBlock;
   _currentBlockSizeShift = uint8_t(Support::min<uint32_t>(uint32_t(blockSizeShift) + 1u, _maximumBlockSizeShift));
+  _unusedByteCount += unusedByteCount;
 
   ASMJIT_ASSERT(_ptr <= _end);
   return static_cast<void*>(ptr);
@@ -228,6 +236,35 @@ char* Zone::sformat(const char* fmt, ...) noexcept {
 
   buf[size++] = 0;
   return static_cast<char*>(dup(buf, size));
+}
+
+// Zone - Statistics
+// =================
+
+ZoneStatistics Zone::statistics() const noexcept {
+  const Block* block = _first;
+  size_t blockCount = 0u;
+  size_t usedSize = 0u;
+  size_t reservedSize = 0u;
+
+  while (block) {
+    if (_ptr >= block->data() && _ptr <= block->end()) {
+      size_t offset = size_t(_ptr - block->data());
+      usedSize = reservedSize + offset;
+    }
+
+    blockCount++;
+    reservedSize += block->size;
+
+    block = block->next;
+  }
+
+  ZoneStatistics stats {};
+  stats._blockCount = blockCount;
+  stats._usedSize = usedSize;
+  stats._reservedSize = reservedSize;
+  stats._overheadSize = _unusedByteCount;
+  return stats;
 }
 
 // ZoneAllocator - Utilities
@@ -401,14 +438,22 @@ UNIT(zone) {
       : _x(x), _y(y) {}
   };
 
+  constexpr size_t kN = 100000u;
+
   {
     Zone zone(1024u * 4u);
 
     for (size_t r = 0; r < 3u; r++) {
-      for (size_t i = 0; i < 100000u; i++) {
+      for (size_t i = 0; i < kN; i++) {
         uint8_t* p = zone.alloc<uint8_t>(32);
         EXPECT_NOT_NULL(p);
       }
+
+      ZoneStatistics stats = zone.statistics();
+      EXPECT_GE(stats.blockCount(), 2u);
+      EXPECT_GE(stats.usedSize(), kN * 32u);
+      EXPECT_GE(stats.reservedSize(), kN * 32u);
+      EXPECT_GE(stats.reservedSize(), stats.usedSize());
       zone.reset(r == 0 ? ResetPolicy::kSoft : ResetPolicy::kHard);
     }
   }
@@ -417,7 +462,7 @@ UNIT(zone) {
     Zone zone(1024u * 4u);
 
     for (size_t r = 0; r < 3u; r++) {
-      for (size_t i = 0; i < 100000u; i++) {
+      for (size_t i = 0; i < kN; i++) {
         SomeData* p = zone.newT<SomeData>(r, i);
         EXPECT_NOT_NULL(p);
       }

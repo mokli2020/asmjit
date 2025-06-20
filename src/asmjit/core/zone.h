@@ -13,6 +13,73 @@ ASMJIT_BEGIN_NAMESPACE
 //! \addtogroup asmjit_zone
 //! \{
 
+//! Zone allocation statistics.
+struct ZoneStatistics {
+  //! \name Members
+  //! \{
+
+  //! Number of blocks maintained.
+  //!
+  //! A block is a bigger chunk of memory that is used by \ref Zone.
+  size_t _blockCount;
+  //! Number of bytes allocated and in use.
+  size_t _usedSize;
+  //! Number of bytes reserved.
+  size_t _reservedSize;
+  //! Overhead describes
+  size_t _overheadSize;
+  //! Number of bytes pooled by \ref ZonePool and \ref ZoneAllocator.
+  size_t _pooledSize;
+
+  //! \}
+
+  //! \name Accessors
+  //! \{
+
+  //! Returns the number of blocks maintained by \ref Zone (or multiple Zones if aggregated).
+  ASMJIT_INLINE_NODEBUG size_t blockCount() const noexcept { return _blockCount; }
+
+  //! Returns the number or bytes used by \ref Zone (or multiple Zones if aggregated).
+  //!
+  //! Used bytes represent the number of bytes successfully returned to \ref Zone users regardless of how these
+  //! bytes are used. For example if \ref Zone is used with \ref ZonePool or \ref ZoneAllocator, the number of
+  //! used bytes pooled by \ref ZonePool or held by \ref ZoneAllocator for future reuse doesn't influence the
+  //! used bytes returned - once the bytes were allocated, they will be accounted.
+  ASMJIT_INLINE_NODEBUG size_t usedSize() const noexcept { return _usedSize; }
+
+  //! Returns the number of bytes reserved by \ref Zone (or multiple Zones if aggregated).
+  ASMJIT_INLINE_NODEBUG size_t reservedSize() const noexcept { return _reservedSize; }
+
+  //! Returns the number of bytes that were allocated, but couldn't be used by allocations because of size
+  //! requests, alignment, or other reasons. The overhead should be relatively small with \ref Zone, but still
+  //! can be used to find pathological cases if they happen for some reason.
+  ASMJIT_INLINE_NODEBUG size_t overheadSize() const noexcept { return _overheadSize; }
+
+  //! Returns the number of bytes, which are used (accounted by \ref usedSize() function), but are currently
+  //! either pooled by \ref ZonePool or available for future requests in \ref ZoneAllocator.
+  ASMJIT_INLINE_NODEBUG size_t pooledSize() const noexcept { return _pooledSize; }
+
+  //! \}
+
+  //! \name Aggregation
+  //! \{
+
+  ASMJIT_INLINE void aggregate(const ZoneStatistics& other) noexcept {
+    _blockCount += other._blockCount;
+    _usedSize += other._usedSize;
+    _reservedSize += other._reservedSize;
+    _overheadSize += other._overheadSize;
+    _pooledSize += other._pooledSize;
+  }
+
+  ASMJIT_INLINE ZoneStatistics& operator+=(const ZoneStatistics& other) noexcept {
+    aggregate(other);
+    return *this;
+  }
+
+  //! \}
+};
+
 //! Zone memory.
 //!
 //! Zone is an incremental memory allocator that allocates memory by simply incrementing a pointer. It allocates
@@ -76,8 +143,8 @@ public:
   uint8_t _maximumBlockSizeShift;
   //! True when the Zone has a static block (static blocks are used by ZoneTmp).
   uint8_t _hasStaticBlock;
-  //! Reserved for future use, must be zero.
-  uint32_t _reserved;
+  //! Unused bytes (remaining bytes in blocks that couldn't be returned because of size requests).
+  uint32_t _unusedByteCount;
 
   //! \}
 
@@ -119,12 +186,15 @@ public:
       _minimumBlockSizeShift(other._minimumBlockSizeShift),
       _maximumBlockSizeShift(other._maximumBlockSizeShift),
       _hasStaticBlock(other._hasStaticBlock),
-      _reserved(other._reserved) {
+      _unusedByteCount(other._unusedByteCount) {
     ASMJIT_ASSERT(!other.hasStaticBlock());
+
     other._ptr = other._block->data();
     other._end = other._block->data();
     other._block = const_cast<Block*>(&_zeroBlock);
     other._first = const_cast<Block*>(&_zeroBlock);
+    other._currentBlockSizeShift = other._minimumBlockSizeShift;
+    other._unusedByteCount = 0;
   }
 
   //! Destroys the `Zone` instance.
@@ -207,7 +277,7 @@ public:
     std::swap(_minimumBlockSizeShift, other._minimumBlockSizeShift);
     std::swap(_maximumBlockSizeShift, other._maximumBlockSizeShift);
     std::swap(_hasStaticBlock, other._hasStaticBlock);
-    std::swap(_reserved, other._reserved);
+    std::swap(_unusedByteCount, other._unusedByteCount);
   }
 
   //! Aligns the current pointer to `alignment`.
@@ -328,6 +398,21 @@ public:
   //! Helper to duplicate a formatted string, maximum size is 256 bytes.
   [[nodiscard]]
   ASMJIT_API char* sformat(const char* str, ...) noexcept;
+
+  //! \}
+
+  //! \name Statistics
+  //! \{
+
+  //! Calculates and returns statistics related to the current use of this \ref Zone.
+  //!
+  //! \note This function fills all members, but `_pooledSize` member (see \ref pooledSize() function) would be
+  //! assigned to zero as \ref Zone has no clue about the use of the requested memory.
+  //!
+  //! \attention This function could be relatively expensive depending on the number of blocks that is managed by
+  //! the allocator. The primary case of this function is to use it during the development to get an idea about
+  //! the use of \ref Zone (or use of multiple Zones if the statistics is aggregated).
+  ASMJIT_API ZoneStatistics statistics() const noexcept;
 
   //! \}
 };
@@ -584,6 +669,16 @@ public:
 
     p->next = _data;
     _data = p;
+  }
+
+  ASMJIT_INLINE size_t pooledItemCount() const noexcept {
+    size_t n = 0;
+    Link* p = _data;
+    while (p) {
+      n++;
+      p = p->next;
+    }
+    return n;
   }
 };
 //! \}

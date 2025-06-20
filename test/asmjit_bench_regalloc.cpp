@@ -427,8 +427,11 @@ bool BenchRegAllocApp::runArch(Arch arch) {
   cc->finalize();
   code.reinit();
 
-  printf("Arch   | Complexity | Labels | RegCount |  CodeSize | EmitTime [ms]| RA Time [ms]\n");
-  printf("-------+------------+--------+----------+-----------+--------------+-------------\n");
+  printf("+-----------------------------------------+-----------+-----------------------------------+--------------+--------------+\n");
+  printf("|           Input Configuration           |   Output  |        Reserved Memory [KiB]      |      Time Elapsed [ms]      |\n");
+  printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
+  printf("| Arch   | Complexity | Labels | RegCount |  CodeSize | Code Hold.| Compiler  | Pass Temp.|   Emit Time  |  Reg. Alloc  |\n");
+  printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
 
   for (uint32_t complexity = 1u; complexity <= _maximumComplexity; complexity *= 2u) {
     emitTimer.start();
@@ -457,8 +460,23 @@ bool BenchRegAllocApp::runArch(Arch arch) {
     size_t labelCount = code.labelCount();
     size_t vRegCount = cc->virtRegs().size();
 
-    printf("%-7s| %10u | %6zu | %8zu | %9zu | %12.3f | %12.3f",
-           asmjitArchAsString(arch), complexity, labelCount, vRegCount, codeSize, emitTime, finalizeTime);
+    ZoneStatistics codeHolderStats = code._zone.statistics();
+    ZoneStatistics compilerStats = cc->_codeZone.statistics();
+    ZoneStatistics passStats = cc->_passZone.statistics();
+
+    printf(
+      "| %-7s| %10u | %6zu | %8zu | %9zu | %9zu | %9zu | %9zu | %12.3f | %12.3f |",
+      asmjitArchAsString(arch),
+      complexity,
+      labelCount,
+      vRegCount,
+      codeSize,
+      (codeHolderStats.reservedSize() + 1023) / 1024,
+      (compilerStats.reservedSize() + 1023) / 1024,
+      (passStats.reservedSize() + 1023) / 1024,
+      emitTime,
+      finalizeTime
+    );
 
     if (err) {
       printf(" (err: %s)", DebugUtils::errorAsString(err));
@@ -469,6 +487,7 @@ bool BenchRegAllocApp::runArch(Arch arch) {
     code.reinit();
   }
 
+  printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
   printf("\n");
 
   return true;

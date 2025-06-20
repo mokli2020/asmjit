@@ -143,7 +143,15 @@ static const constexpr NoInit_ NoInit {};
 
 //! Casts a `void*` pointer `func` to a function pointer `Func`.
 template<typename Func>
-static ASMJIT_INLINE_NODEBUG Func ptr_as_func(void* func) noexcept { return Support::ptr_cast_impl<Func, void*>(func); }
+static ASMJIT_INLINE_NODEBUG Func ptr_as_func(void* p) noexcept {
+  return Support::ptr_cast_impl<Func, void*>(p);
+}
+
+//! Casts a `void*` pointer `func` to a function pointer `Func`.
+template<typename Func>
+static ASMJIT_INLINE_NODEBUG Func ptr_as_func(void* p, size_t offset) noexcept {
+  return Support::ptr_cast_impl<Func, void*>(static_cast<void*>(static_cast<char*>(p) + offset));
+}
 
 //! Casts a function pointer `func` to a void pointer `void*`.
 template<typename Func>
@@ -398,13 +406,6 @@ ASMJIT_API void assertionFailed(const char* file, int line, const char* msg) noe
 #else
   #define ASMJIT_ASSERT(...) ((void)0)
 #endif
-
-#define ASMJIT_RUNTIME_ASSERT(...)                                             \
-  do {                                                                         \
-    if (ASMJIT_UNLIKELY(!(__VA_ARGS__))) {                                     \
-      ::asmjit::DebugUtils::assertionFailed(__FILE__, __LINE__, #__VA_ARGS__); \
-    }                                                                          \
-  } while (0)
 
 //! \def ASMJIT_NOT_REACHED()
 //!
