@@ -16,6 +16,12 @@
 #include "asmjitutils.h"
 #include "broken.h"
 
+#if !defined(ASMJIT_NO_COMPILER)
+#include <asmjit/core/racfgblock_p.h>
+#include <asmjit/core/rainst_p.h>
+#include <asmjit/core/rapass_p.h>
+#endif
+
 using namespace asmjit;
 
 #define DUMP_TYPE(...) \
@@ -54,11 +60,11 @@ static void printTypeSizes(void) noexcept {
   printf("Size of zone classes:\n");
     DUMP_TYPE(Zone);
     DUMP_TYPE(ZoneAllocator);
-    DUMP_TYPE(ZoneBitVector);
     DUMP_TYPE(ZoneHashNode);
     DUMP_TYPE(ZoneHash<ZoneHashNode>);
     DUMP_TYPE(ZoneList<int>);
     DUMP_TYPE(ZoneVector<int>);
+    DUMP_TYPE(ZoneString<16>);
   printf("\n");
 
   printf("Size of operand classes:\n");
@@ -79,12 +85,15 @@ static void printTypeSizes(void) noexcept {
   printf("\n");
 
 #if !defined(ASMJIT_NO_BUILDER)
+  constexpr uint32_t kBaseOpCapacity = InstNode::kBaseOpCapacity;
+  constexpr uint32_t kFullOpCapacity = InstNode::kFullOpCapacity;
+
   printf("Size of builder classes:\n");
     DUMP_TYPE(BaseBuilder);
     DUMP_TYPE(BaseNode);
     DUMP_TYPE(InstNode);
-    DUMP_TYPE(InstNodeWithOperands<InstNode::kBaseOpCapacity>);
-    DUMP_TYPE(InstNodeWithOperands<InstNode::kFullOpCapacity>);
+    DUMP_TYPE(InstNodeWithOperands<kBaseOpCapacity>);
+    DUMP_TYPE(InstNodeWithOperands<kFullOpCapacity>);
     DUMP_TYPE(AlignNode);
     DUMP_TYPE(LabelNode);
     DUMP_TYPE(EmbedDataNode);
@@ -101,6 +110,15 @@ static void printTypeSizes(void) noexcept {
     DUMP_TYPE(FuncNode);
     DUMP_TYPE(FuncRetNode);
     DUMP_TYPE(InvokeNode);
+    DUMP_TYPE(VirtReg);
+  printf("\n");
+
+  printf("Size of compiler classes (RA):\n");
+    DUMP_TYPE(BaseRAPass);
+    DUMP_TYPE(RABlock);
+    DUMP_TYPE(RAInst);
+    DUMP_TYPE(RATiedReg);
+    DUMP_TYPE(RAWorkReg);
   printf("\n");
 #endif
 

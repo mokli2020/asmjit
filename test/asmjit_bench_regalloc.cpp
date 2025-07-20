@@ -145,12 +145,12 @@ void BenchRegAllocApp::emitCode(BaseCompiler* cc, uint32_t complexity, uint32_t 
 #endif
 }
 
+constexpr size_t kLocalRegCount = 3;
+constexpr size_t kLocalOpCount = 15;
+
 #if !defined(ASMJIT_NO_X86)
 void BenchRegAllocApp::emitCode_x86(x86::Compiler* cc, uint32_t complexity, uint32_t regCount) {
-  constexpr size_t kLocalRegCount = 3;
-
   TestUtils::Random rnd(0x1234);
-  size_t localOpCount = 15;
 
   std::vector<Label> labels;
   std::vector<uint32_t> used_labels;
@@ -200,7 +200,7 @@ void BenchRegAllocApp::emitCode_x86(x86::Compiler* cc, uint32_t complexity, uint
       locals[j] = cc->newXmmSd("local%u", unsigned(j));
     }
 
-    size_t localOpThreshold = localOpCount - kLocalRegCount;
+    size_t localOpThreshold = kLocalOpCount - kLocalRegCount;
 
     for (size_t j = 0; j < 15; j++) {
       uint32_t op = rnd.nextUInt32() % 6u;
@@ -244,9 +244,6 @@ void BenchRegAllocApp::emitCode_x86(x86::Compiler* cc, uint32_t complexity, uint
 #if !defined(ASMJIT_NO_AARCH64)
 void BenchRegAllocApp::emitCode_a64(a64::Compiler* cc, uint32_t complexity, uint32_t regCount) {
   TestUtils::Random rnd(0x1234);
-
-  constexpr size_t kLocalRegCount = 3;
-  size_t localOpCount = 15;
 
   std::vector<Label> labels;
   std::vector<uint32_t> used_labels;
@@ -296,7 +293,7 @@ void BenchRegAllocApp::emitCode_a64(a64::Compiler* cc, uint32_t complexity, uint
       locals[j] = cc->newVecD("local%u", unsigned(j));
     }
 
-    size_t localOpThreshold = localOpCount - kLocalRegCount;
+    size_t localOpThreshold = kLocalOpCount - kLocalRegCount;
 
     for (size_t j = 0; j < 15; j++) {
       uint32_t op = rnd.nextUInt32() % 6;
@@ -427,6 +424,14 @@ bool BenchRegAllocApp::runArch(Arch arch) {
   cc->finalize();
   code.reinit();
 
+#if !defined(ASMJIT_NO_LOGGING)
+  StringLogger logger;
+  if (_verbose) {
+    code.setLogger(&logger);
+    cc->addDiagnosticOptions(DiagnosticOptions::kRAAnnotate | DiagnosticOptions::kRADebugAll);
+  }
+#endif // !ASMJIT_NO_LOGGING
+
   printf("+-----------------------------------------+-----------+-----------------------------------+--------------+--------------+\n");
   printf("|           Input Configuration           |   Output  |        Reserved Memory [KiB]      |      Time Elapsed [ms]      |\n");
   printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
@@ -438,19 +443,16 @@ bool BenchRegAllocApp::runArch(Arch arch) {
     emitCode(cc.get(), complexity + 1, regCount);
     emitTimer.stop();
 
-#if !defined(ASMJIT_NO_LOGGING)
-    if (_verbose) {
-      String sb;
-      FormatOptions fmtOptions;
-      Formatter::formatNodeList(sb, fmtOptions, cc.get());
-      printf("[Complexity: %u Assembly]\n", complexity);
-      printIndented(sb.data(), 4);
-    }
-#endif // ASMJIT_NO_LOGGING
-
     finalizeTimer.start();
     Error err = cc->finalize();
     finalizeTimer.stop();
+
+#if !defined(ASMJIT_NO_LOGGING)
+    if (_verbose) {
+      printf("%s\n", logger.data());
+      logger.clear();
+    }
+#endif
 
     code.flatten();
 

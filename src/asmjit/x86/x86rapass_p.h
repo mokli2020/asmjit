@@ -10,7 +10,8 @@
 #ifndef ASMJIT_NO_COMPILER
 
 #include "../core/compiler.h"
-#include "../core/rabuilders_p.h"
+#include "../core/racfgblock_p.h"
+#include "../core/racfgbuilder_p.h"
 #include "../core/rapass_p.h"
 #include "../x86/x86assembler.h"
 #include "../x86/x86compiler.h"
@@ -40,7 +41,7 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  X86RAPass() noexcept;
+  X86RAPass(BaseCompiler& cc) noexcept;
   ~X86RAPass() noexcept override;
 
   //! \}
@@ -50,7 +51,7 @@ public:
 
   //! Returns the compiler casted to `x86::Compiler`.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG Compiler* cc() const noexcept { return static_cast<Compiler*>(_cb); }
+  ASMJIT_INLINE_NODEBUG Compiler& cc() const noexcept { return static_cast<Compiler&>(_cb); }
 
   //! Returns emit helper.
   [[nodiscard]]
@@ -72,13 +73,13 @@ public:
 
   Error buildCFG() noexcept override;
 
-  Error _rewrite(BaseNode* first, BaseNode* stop) noexcept override;
+  Error rewrite() noexcept override;
 
-  Error emitMove(RAWorkId workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;
-  Error emitSwap(RAWorkId aWorkId, uint32_t aPhysId, RAWorkId bWorkId, uint32_t bPhysId) noexcept override;
+  Error emitMove(RAWorkReg* wReg, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;
+  Error emitSwap(RAWorkReg* aReg, uint32_t aPhysId, RAWorkReg* bReg, uint32_t bPhysId) noexcept override;
 
-  Error emitLoad(RAWorkId workId, uint32_t dstPhysId) noexcept override;
-  Error emitSave(RAWorkId workId, uint32_t srcPhysId) noexcept override;
+  Error emitLoad(RAWorkReg* wReg, uint32_t dstPhysId) noexcept override;
+  Error emitSave(RAWorkReg* wReg, uint32_t srcPhysId) noexcept override;
 
   Error emitJump(const Label& label) noexcept override;
   Error emitPreCall(InvokeNode* invokeNode) noexcept override;

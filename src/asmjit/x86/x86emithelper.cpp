@@ -505,7 +505,7 @@ ASMJIT_FAVOR_SIZE Error EmitHelper::emitProlog(const FuncFrame& frame) {
   // Emit: 'push zbp'
   //       'mov  zbp, zsp'.
   if (frame.hasPreservedFP()) {
-    gpSaved &= ~Support::bitMask(Gp::kIdBp);
+    gpSaved &= ~Support::bitMask<RegMask>(Gp::kIdBp);
     ASMJIT_PROPAGATE(emitter->push(zbp));
     ASMJIT_PROPAGATE(emitter->mov(zbp, zsp));
   }
@@ -553,7 +553,7 @@ ASMJIT_FAVOR_SIZE Error EmitHelper::emitProlog(const FuncFrame& frame) {
   {
     Mem xBase = ptr(zsp, int32_t(frame.extraRegSaveOffset()));
 
-    for (RegGroup group : Support::Enumerate<RegGroup, RegGroup(1), RegGroup::kMaxVirt>{}) {
+    for (RegGroup group : Support::enumerate(RegGroup(1), RegGroup::kMaxVirt)) {
       Support::BitWordIterator<RegMask> it(frame.savedRegs(group));
       if (it.hasNext()) {
         Reg xReg;
@@ -587,14 +587,14 @@ ASMJIT_FAVOR_SIZE Error EmitHelper::emitEpilog(const FuncFrame& frame) {
 
   // Don't emit 'pop zbp' in the pop sequence, this case is handled separately.
   if (frame.hasPreservedFP()) {
-    gpSaved &= ~Support::bitMask(Gp::kIdBp);
+    gpSaved &= ~Support::bitMask<RegMask>(Gp::kIdBp);
   }
 
   // Emit 'movxxx {[x|y|z]mm, k}, [zsp + X]'.
   {
     Mem xBase = ptr(zsp, int32_t(frame.extraRegSaveOffset()));
 
-    for (RegGroup group : Support::Enumerate<RegGroup, RegGroup(1), RegGroup::kMaxVirt>{}) {
+    for (RegGroup group : Support::enumerate(RegGroup(1), RegGroup::kMaxVirt)) {
       Support::BitWordIterator<RegMask> it(frame.savedRegs(group));
       if (it.hasNext()) {
         Reg xReg;

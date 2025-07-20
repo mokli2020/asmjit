@@ -80,6 +80,19 @@ public:
 
   //! \}
 
+  //! \name Passes
+  //! \{
+
+  //! \overload
+  template<typename PassT, typename... Args>
+  [[nodiscard]]
+  ASMJIT_INLINE PassT* newPass(Args&&... args) noexcept { return _codeZone.newT<PassT>(*this, std::forward<Args>(args)...); }
+
+  template<typename T, typename... Args>
+  ASMJIT_INLINE Error addPass(Args&&... args) { return _addPass(newPass<T, Args...>(std::forward<Args>(args)...)); }
+
+  //! \}
+
   //! \name Function Management
   //! \{
 
@@ -194,7 +207,7 @@ public:
 
   //! Returns an array of all virtual registers managed by the Compiler.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<VirtReg*>& virtRegs() const noexcept { return _vRegArray; }
+  ASMJIT_INLINE_NODEBUG Span<VirtReg*> virtRegs() const noexcept { return _vRegArray.as_span(); }
 
   //! \name Stack
   //! \{
@@ -237,9 +250,7 @@ public:
   //! \{
 
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<JumpAnnotation*>& jumpAnnotations() const noexcept {
-    return _jumpAnnotations;
-  }
+  ASMJIT_INLINE_NODEBUG Span<JumpAnnotation*> jumpAnnotations() const noexcept { return _jumpAnnotations.as_span(); }
 
   ASMJIT_API Error newJumpNode(JumpNode** ASMJIT_NONNULL(out), InstId instId, InstOptions instOptions, const Operand_& o0, JumpAnnotation* annotation);
   ASMJIT_API Error emitAnnotatedJump(InstId instId, const Operand_& o0, JumpAnnotation* annotation);
@@ -305,7 +316,7 @@ public:
 
   //! Returns a vector of label identifiers that lists all targets of the jump.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<uint32_t>& labelIds() const noexcept { return _labelIds; }
+  ASMJIT_INLINE_NODEBUG Span<uint32_t> labelIds() const noexcept { return _labelIds.as_span(); }
 
   //! Tests whether the given `label` is a target of this JumpAnnotation.
   [[nodiscard]]
@@ -747,7 +758,7 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  ASMJIT_API FuncPass(const char* name) noexcept;
+  ASMJIT_API FuncPass(BaseCompiler& cc, const char* name) noexcept;
 
   //! \}
 
@@ -756,7 +767,7 @@ public:
 
   //! Returns the associated `BaseCompiler`.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG BaseCompiler* cc() const noexcept { return static_cast<BaseCompiler*>(_cb); }
+  ASMJIT_INLINE_NODEBUG BaseCompiler& cc() const noexcept { return static_cast<BaseCompiler&>(_cb); }
 
   //! \}
 

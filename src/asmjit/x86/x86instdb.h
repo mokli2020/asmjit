@@ -501,7 +501,7 @@ struct CommonInfo {
   // Returns the size of the broadcast - either 2, 4, or 8, or 0 if broadcast is not supported.
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG uint32_t broadcastSize() const noexcept {
-    constexpr uint32_t kShift = Support::ConstCTZ<uint32_t(Avx512Flags::kB16)>::value;
+    constexpr uint32_t kShift = Support::ctz_const<Avx512Flags::kB16>;
     return (uint32_t(_avx512Flags) & uint32_t(Avx512Flags::kB16 | Avx512Flags::kB32 | Avx512Flags::kB64)) >> (kShift - 1);
   }
 

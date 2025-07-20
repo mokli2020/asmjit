@@ -818,13 +818,13 @@ public:
   //! \name Base & Index
   //! \{
 
-  //! Converts memory `baseType` and `baseId` to `x86::Reg` instance.
+  //! Converts memory `baseType` and `baseId` to `Reg` instance.
   //!
   //! The memory must have a valid base register otherwise the result will be wrong.
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG Reg baseReg() const noexcept { return Reg::fromTypeAndId(baseType(), baseId()); }
 
-  //! Converts memory `indexType` and `indexId` to `x86::Reg` instance.
+  //! Converts memory `indexType` and `indexId` to `Reg` instance.
   //!
   //! The memory must have a valid index register otherwise the result will be wrong.
   [[nodiscard]]

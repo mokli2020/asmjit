@@ -375,7 +375,7 @@ ASMJIT_BEGIN_SUB_NAMESPACE(x86)
 //!   frame.init(func);
 //!
 //!   // Make XMM0 and XMM1 dirty - RegGroup::kVec describes XMM|YMM|ZMM registers.
-//!   frame.setDirtyRegs(RegGroup::kVec, Support::bitMask(0, 1));
+//!   frame.setDirtyRegs(RegGroup::kVec, Support::bitMask<RegMask>(0, 1));
 //!
 //!   // Alternatively, if you don't want to use register masks you can pass Reg
 //!   // to addDirtyRegs(). The following code would add both xmm0 and xmm1.

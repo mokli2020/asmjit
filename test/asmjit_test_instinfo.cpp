@@ -41,7 +41,7 @@ static void printInfo(Arch arch, const BaseInst& inst, const Operand_* operands,
   InstAPI::queryRWInfo(arch, inst, operands, opCount, &rw);
 
 #ifndef ASMJIT_NO_LOGGING
-  Formatter::formatInstruction(sb, FormatFlags::kNone, nullptr, arch, inst, operands, opCount);
+  Formatter::formatInstruction(sb, FormatFlags::kNone, nullptr, arch, inst, Span(operands, opCount));
 #else
   sb.append("<Logging-Not-Available>");
 #endif

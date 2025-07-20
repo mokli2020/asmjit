@@ -451,7 +451,7 @@ public:
 
     //! Returns a name associated with this extra data - a valid pointer is only returned when the label has a name, which
     //! is marked by \ref LabelFlags::kHasName flag.
-    ASMJIT_INLINE_NODEBUG const char* name() const noexcept { return Support::offsetPtr<char>(this, sizeof(ExtraData)); }
+    ASMJIT_INLINE_NODEBUG const char* name() const noexcept { return Support::offset_ptr<char>(this, sizeof(ExtraData)); }
   };
 
   //! \name Members
@@ -830,11 +830,7 @@ public:
   //!
   //! An optional `temporary` argument can be used to initialize the first block of \ref Zone that the CodeHolder
   //! uses into a temporary memory provided by the user.
-  ASMJIT_API explicit CodeHolder(const Support::Temporary* temporary = nullptr) noexcept;
-
-  //! \overload
-  ASMJIT_INLINE_NODEBUG explicit CodeHolder(const Support::Temporary& temporary) noexcept
-    : CodeHolder(&temporary) {}
+  ASMJIT_API explicit CodeHolder(Span<uint8_t> static_arena_memory = Span<uint8_t>{}) noexcept;
 
   //! Destroys the CodeHolder and frees all resources it has allocated.
   ASMJIT_API ~CodeHolder() noexcept;
@@ -992,15 +988,15 @@ public:
 
   //! Returns an array of `Section*` records.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<Section*>& sections() const noexcept { return _sections; }
+  ASMJIT_INLINE_NODEBUG Span<Section*> sections() const noexcept { return _sections.as_span(); }
 
   //! Returns an array of `Section*` records sorted according to section order first, then section id.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<Section*>& sectionsByOrder() const noexcept { return _sectionsByOrder; }
+  ASMJIT_INLINE_NODEBUG Span<Section*> sectionsByOrder() const noexcept { return _sectionsByOrder.as_span(); }
 
   //! Returns the number of sections.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t sectionCount() const noexcept { return _sections.size(); }
+  ASMJIT_INLINE_NODEBUG size_t sectionCount() const noexcept { return _sections.size(); }
 
   //! Tests whether the given `sectionId` is valid.
   [[nodiscard]]
@@ -1062,11 +1058,11 @@ public:
 
   //! Returns array of `LabelEntry` records.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<LabelEntry>& labelEntries() const noexcept { return _labelEntries; }
+  ASMJIT_INLINE_NODEBUG Span<LabelEntry> labelEntries() const noexcept { return _labelEntries.as_span(); }
 
   //! Returns number of labels created.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG uint32_t labelCount() const noexcept { return _labelEntries.size(); }
+  ASMJIT_INLINE_NODEBUG size_t labelCount() const noexcept { return _labelEntries.size(); }
 
   //! Tests whether the label having `labelId` is valid (i.e. created by `newLabelId()`).
   [[nodiscard]]
@@ -1193,8 +1189,9 @@ public:
 
   //! Returns a label by name.
   //!
-  //! If the named label doesn't a default constructed \ref Label is returned,
-  //! which has its id set to \ref Globals::kInvalidId.
+  //! \remarks If the named label doesn't exist a default constructed \ref Label is returned, which has its id set
+  //! to \ref Globals::kInvalidId. In other words, this function doesn't create new labels, it can only be used to
+  //! query an existing \ref Label by name.
   [[nodiscard]]
   ASMJIT_INLINE_NODEBUG Label labelByName(const char* name, size_t nameSize = SIZE_MAX, uint32_t parentId = Globals::kInvalidId) noexcept {
     return Label(labelIdByName(name, nameSize, parentId));
@@ -1202,7 +1199,8 @@ public:
 
   //! Returns a label id by name.
   //!
-  //! If the named label doesn't exist \ref Globals::kInvalidId is returned.
+  //! \remarks If the named label doesn't exist \ref Globals::kInvalidId is returned. In other words, this function
+  //! doesn't create new labels, it can only be used to query an existing label identifier by name.
   [[nodiscard]]
   ASMJIT_API uint32_t labelIdByName(const char* name, size_t nameSize = SIZE_MAX, uint32_t parentId = Globals::kInvalidId) noexcept;
 
@@ -1241,7 +1239,7 @@ public:
 
   //! Returns array of `RelocEntry*` records.
   [[nodiscard]]
-  ASMJIT_INLINE_NODEBUG const ZoneVector<RelocEntry*>& relocEntries() const noexcept { return _relocations; }
+  ASMJIT_INLINE_NODEBUG Span<RelocEntry*> relocEntries() const noexcept { return _relocations.as_span(); }
 
   //! Returns a RelocEntry of the given `id`.
   [[nodiscard]]

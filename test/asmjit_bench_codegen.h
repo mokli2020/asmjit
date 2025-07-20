@@ -108,6 +108,7 @@ static void bench(asmjit::CodeHolder& code, asmjit::Arch arch, uint32_t numItera
   }
 
   printf("\n");
+  code.reset();
 }
 
 } // {asmjit_perf_utils}

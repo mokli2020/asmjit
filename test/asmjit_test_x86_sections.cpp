@@ -100,7 +100,7 @@ int main() {
   printf("\nCalculating section offsets:\n");
   uint64_t offset = 0;
   for (Section* section : code.sectionsByOrder()) {
-    offset = Support::alignUp(offset, section->alignment());
+    offset = Support::align_up(offset, section->alignment());
     section->setOffset(offset);
     offset += section->realSize();
 

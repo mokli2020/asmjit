@@ -21,7 +21,7 @@ static ASMJIT_INLINE Zone::Block* Zone_getZeroBlock() noexcept {
 }
 
 static ASMJIT_INLINE void Zone_assignBlock(Zone* zone, Zone::Block* block) noexcept {
-  zone->_ptr = Support::alignUp(block->data(), Globals::kZoneAlignment);
+  zone->_ptr = Support::align_up(block->data(), Globals::kZoneAlignment);
   zone->_end = block->end();
   zone->_block = block;
   ASMJIT_ASSERT(zone->_ptr <= zone->_end);
@@ -30,26 +30,26 @@ static ASMJIT_INLINE void Zone_assignBlock(Zone* zone, Zone::Block* block) noexc
 // Zone - Initialization & Reset
 // =============================
 
-void Zone::_init(size_t blockSize, const Support::Temporary* temporary) noexcept {
+void Zone::_init(size_t blockSize, Span<uint8_t> static_arena_memory) noexcept {
   ASMJIT_ASSERT(blockSize >= kMinBlockSize);
   ASMJIT_ASSERT(blockSize <= kMaxBlockSize);
 
   Block* block = Zone_getZeroBlock();
-  size_t blockSizeShift = Support::bitSizeOf<size_t>() - Support::clz(blockSize);
+  size_t blockSizeShift = Support::bit_size_of<size_t> - Support::clz(blockSize);
 
   _currentBlockSizeShift = uint8_t(blockSizeShift);
   _minimumBlockSizeShift = uint8_t(blockSizeShift);
   _maximumBlockSizeShift = uint8_t(26); // (1 << 26) Equals 64 MiB blocks.
-  _hasStaticBlock = uint8_t(temporary != nullptr);
+  _hasStaticBlock = uint8_t(static_arena_memory.size() != 0u);
   _unusedByteCount = 0u;
 
   // Setup the first [temporary] block, if necessary.
-  if (temporary) {
-    block = temporary->data<Block>();
+  if (static_arena_memory.size()) {
+    block = reinterpret_cast<Block*>(static_arena_memory.data());
     block->next = nullptr;
 
-    ASMJIT_ASSERT(temporary->size() >= kBlockSize);
-    block->size = temporary->size() - kBlockSize;
+    ASMJIT_ASSERT(static_arena_memory.size() >= kBlockSize);
+    block->size = static_arena_memory.size() - kBlockSize;
   }
 
   _first = block;
@@ -97,7 +97,7 @@ static ASMJIT_INLINE uint32_t Zone_getUnusedByteCount(Zone::Block* block, const 
 }
 
 void* Zone::_alloc(size_t size) noexcept {
-  ASMJIT_ASSERT(Support::isAligned(size, Globals::kZoneAlignment));
+  ASMJIT_ASSERT(Support::is_aligned(size, Globals::kZoneAlignment));
 
   // Overhead of block alignment (we want to achieve at least Globals::kZoneAlignment).
   constexpr size_t kAlignmentOverhead =
@@ -116,8 +116,8 @@ void* Zone::_alloc(size_t size) noexcept {
   // If the `Zone` has been soft-reset the current block doesn't have to be the last one. Check if there is a block
   // that can be used instead of allocating a new one. If there is a `next` block it's completely unused, we don't
   // have to check for remaining bytes in that case.
-  if (next) {
-    uint8_t* ptr = Support::alignUp(next->data(), Globals::kZoneAlignment);
+  while (next) {
+    uint8_t* ptr = Support::align_up(next->data(), Globals::kZoneAlignment);
     uint8_t* end = next->end();
 
     if (size <= (size_t)(end - ptr)) {
@@ -129,6 +129,12 @@ void* Zone::_alloc(size_t size) noexcept {
       ASMJIT_ASSERT(_ptr <= _end);
       return static_cast<void*>(ptr);
     }
+
+    Block* block_to_del = next;
+    curBlock->next = next;
+
+    next = next->next;
+    free(block_to_del);
   }
 
   // Calculates the initial size of a next block - in most cases this would be enough for the allocation. In
@@ -175,7 +181,7 @@ void* Zone::_alloc(size_t size) noexcept {
     curBlock->next = newBlock;
   }
 
-  uint8_t* ptr = Support::alignUp(newBlock->data(), Globals::kZoneAlignment);
+  uint8_t* ptr = Support::align_up(newBlock->data(), Globals::kZoneAlignment);
   uint8_t* end = newBlock->data() + realBlockSize;
 
   _ptr = ptr + size;
@@ -188,8 +194,8 @@ void* Zone::_alloc(size_t size) noexcept {
   return static_cast<void*>(ptr);
 }
 
-void* Zone::allocZeroed(size_t size) noexcept {
-  ASMJIT_ASSERT(Support::isAligned(size, Globals::kZoneAlignment));
+void* Zone::_allocZeroed(size_t size) noexcept {
+  ASMJIT_ASSERT(Support::is_aligned(size, Globals::kZoneAlignment));
 
   void* p = alloc(size);
   if (ASMJIT_UNLIKELY(!p)) {
@@ -206,7 +212,7 @@ void* Zone::dup(const void* data, size_t size, bool nullTerminate) noexcept {
 
   ASMJIT_ASSERT(size != SIZE_MAX);
 
-  size_t allocSize = Support::alignUp(size + size_t(nullTerminate), Globals::kZoneAlignment);
+  size_t allocSize = Support::align_up(size + size_t(nullTerminate), Globals::kZoneAlignment);
   uint8_t* m = alloc<uint8_t>(allocSize);
 
   if (ASMJIT_UNLIKELY(!m)) {
@@ -320,35 +326,35 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
 
     _zone->align(kBlockAlignment);
     p = _zone->ptr();
-    size_t remain = (size_t)(_zone->end() - p);
+    size_t remaining_size = (size_t)(_zone->end() - p);
 
-    if (ASMJIT_LIKELY(remain >= size)) {
+    if (ASMJIT_LIKELY(remaining_size >= size)) {
       _zone->setPtr(p + size);
       return p;
     }
     else {
       // Distribute the remaining memory to suitable slots, if possible.
-      if (remain >= kLoGranularity) {
-        do {
-          size_t distSize = Support::min<size_t>(remain, kLoMaxSize);
-          uint32_t distSlot = uint32_t((distSize - kLoGranularity) / kLoGranularity);
-          ASMJIT_ASSERT(distSlot < kLoCount);
+      while (remaining_size >= kMinSize) {
+        size_t saved_slot {};
+        size_t saved_size {};
 
-          reinterpret_cast<Slot*>(p)->next = _slots[distSlot];
-          _slots[distSlot] = reinterpret_cast<Slot*>(p);
+        // We would always have a slot if we have obtained a slot `size` as `remain < size`.
+        (void)_getSlotIndex(remaining_size / 2u, saved_slot, saved_size);
 
-          p += distSize;
-          remain -= distSize;
-        } while (remain >= kLoGranularity);
-        _zone->setPtr(p);
+        reinterpret_cast<Slot*>(p)->next = _slots[saved_slot];
+        _slots[saved_slot] = reinterpret_cast<Slot*>(p);
+
+        p += saved_size;
+        remaining_size -= saved_size;
       }
+
+      _zone->setPtr(p);
 
       p = static_cast<uint8_t*>(_zone->_alloc(size));
       if (ASMJIT_UNLIKELY(!p)) {
         allocatedSize = 0;
         return nullptr;
       }
-
       return p;
     }
   }
@@ -381,7 +387,7 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
 
     // Align the pointer to the guaranteed alignment and store `DynamicBlock`
     // at the beginning of the memory block, so `_releaseDynamic()` can find it.
-    p = Support::alignUp(static_cast<uint8_t*>(p) + sizeof(DynamicBlock) + sizeof(DynamicBlock*), kBlockAlignment);
+    p = Support::align_up(static_cast<uint8_t*>(p) + sizeof(DynamicBlock) + sizeof(DynamicBlock*), kBlockAlignment);
     reinterpret_cast<DynamicBlock**>(p)[-1] = block;
 
     allocatedSize = size;
@@ -472,25 +478,22 @@ UNIT(zone) {
 }
 
 UNIT(zone_allocator_slots) {
-  constexpr size_t kLoMaxSize = ZoneAllocator::kLoCount * ZoneAllocator::kLoGranularity;
-  constexpr size_t kHiMaxSize = ZoneAllocator::kHiCount * ZoneAllocator::kHiGranularity + kLoMaxSize;
+  constexpr size_t kMaxSize = ZoneAllocator::kMinSize * ZoneAllocator::kSlotCount;
 
-  for (size_t size = 1; size <= kLoMaxSize; size++) {
+  size_t expected_slot = 0;
+  size_t expected_until = ZoneAllocator::kMinSize;
+
+  for (size_t size = 1; size <= kMaxSize; size++) {
     size_t acquired_slot;
-    size_t expected_slot = (size - 1) / ZoneAllocator::kLoGranularity;
 
     EXPECT_TRUE(ZoneAllocator::_getSlotIndex(size, acquired_slot));
     EXPECT_EQ(acquired_slot, expected_slot);
-    EXPECT_LT(acquired_slot, ZoneAllocator::kLoCount);
-  }
+    EXPECT_LT(acquired_slot, ZoneAllocator::kSlotCount);
 
-  for (size_t size = kLoMaxSize + 1; size <= kHiMaxSize; size++) {
-    size_t acquired_slot;
-    size_t expected_slot = (size - kLoMaxSize - 1) / ZoneAllocator::kHiGranularity + ZoneAllocator::kLoCount;
-
-    EXPECT_TRUE(ZoneAllocator::_getSlotIndex(size, acquired_slot));
-    EXPECT_EQ(acquired_slot, expected_slot);
-    EXPECT_LT(acquired_slot, ZoneAllocator::kLoCount + ZoneAllocator::kHiCount);
+    if (size == expected_until) {
+      expected_slot++;
+      expected_until *= 2;
+    }
   }
 }
 #endif // ASMJIT_TEST

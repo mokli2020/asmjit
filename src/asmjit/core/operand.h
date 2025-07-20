@@ -139,7 +139,7 @@ enum class RegGroup : uint8_t {
   kMask = 2,
 
   //! Extra virtual group #3 that can be used by Compiler for register allocation.
-  kExtraVirt3 = 3,
+  kExtra = 3,
 
   //! TMM register group (X86|X86_64).
   kTile = 4,
@@ -153,8 +153,8 @@ enum class RegGroup : uint8_t {
   //! Debug register group (X86|X86_64).
   kDebug = 12,
 
-  //! MMX register group (MM) - maps to \ref RegGroup::kExtraVirt3 (X86|X86_64).
-  kX86_MM = kExtraVirt3,
+  //! MMX register group (MM) - maps to \ref RegGroup::kExtra (X86|X86_64).
+  kX86_MM = kExtra,
   //! FPU register group (X86|X86_64).
   kX86_St = 13,
   //! BND register group (X86|X86_64).
@@ -170,9 +170,6 @@ enum class RegGroup : uint8_t {
   kMaxVirt = Globals::kNumVirtGroups - 1
 };
 ASMJIT_DEFINE_ENUM_COMPARE(RegGroup)
-
-//! Used to enumerate all RegGroup values that are considered by Compiler for register allocation (group 0...kMaxVirt).
-using EnumerateVirtRegGroup = Support::Enumerate<RegGroup, RegGroup::kGp, RegGroup::kMaxVirt>;
 
 //! Operand signature is a 32-bit number describing \ref Operand and some of its payload.
 //!
@@ -256,7 +253,7 @@ struct OperandSignature {
   template<uint32_t kFieldMask, typename T>
   [[nodiscard]]
   static ASMJIT_INLINE_CONSTEXPR OperandSignature fromValue(const T& value) noexcept {
-    return OperandSignature{uint32_t(value) << Support::ConstCTZ<kFieldMask>::value};
+    return OperandSignature{uint32_t(value) << Support::ctz_const<kFieldMask>};
   }
 
   //! Constructs operand signature describing the given operand type `opType`.
@@ -374,25 +371,25 @@ struct OperandSignature {
   template<uint32_t kFieldMask>
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool hasField(uint32_t value) const noexcept {
-    return (_bits & kFieldMask) != value << Support::ConstCTZ<kFieldMask>::value;
+    return (_bits & kFieldMask) != value << Support::ctz_const<kFieldMask>;
   }
 
   template<uint32_t kFieldMask>
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR uint32_t getField() const noexcept {
-    return (_bits >> Support::ConstCTZ<kFieldMask>::value) & (kFieldMask >> Support::ConstCTZ<kFieldMask>::value);
+    return (_bits >> Support::ctz_const<kFieldMask>) & (kFieldMask >> Support::ctz_const<kFieldMask>);
   }
 
   template<uint32_t kFieldMask>
   ASMJIT_INLINE_CONSTEXPR void setField(uint32_t value) noexcept {
-    ASMJIT_ASSERT(((value << Support::ConstCTZ<kFieldMask>::value) & ~kFieldMask) == 0);
-    _bits = (_bits & ~kFieldMask) | (value << Support::ConstCTZ<kFieldMask>::value);
+    ASMJIT_ASSERT(((value << Support::ctz_const<kFieldMask>) & ~kFieldMask) == 0);
+    _bits = (_bits & ~kFieldMask) | (value << Support::ctz_const<kFieldMask>);
   }
 
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR OperandSignature subset(uint32_t mask) const noexcept { return OperandSignature{_bits & mask}; }
 
-  template<uint32_t kFieldMask, uint32_t kFieldShift = Support::ConstCTZ<kFieldMask>::value>
+  template<uint32_t kFieldMask, uint32_t kFieldShift = Support::ctz_const<kFieldMask>>
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR OperandSignature replacedValue(uint32_t value) const noexcept { return OperandSignature{(_bits & ~kFieldMask) | (value << kFieldShift)}; }
 
@@ -720,7 +717,7 @@ struct Operand_ {
   //! or memory location with a single check.
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isRegOrMem() const noexcept {
-    return Support::isBetween<uint32_t>(uint32_t(opType()), uint32_t(OperandType::kReg), uint32_t(OperandType::kMem));
+    return Support::is_between<uint32_t>(uint32_t(opType()), uint32_t(OperandType::kReg), uint32_t(OperandType::kMem));
   }
 
   //! Tests whether the operand is a register, register-list, or memory.
@@ -730,7 +727,7 @@ struct Operand_ {
   //! don't provide register lists.
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool isRegOrRegListOrMem() const noexcept {
-    return Support::isBetween<uint32_t>(uint32_t(opType()), uint32_t(OperandType::kReg), uint32_t(OperandType::kRegList));
+    return Support::is_between<uint32_t>(uint32_t(opType()), uint32_t(OperandType::kReg), uint32_t(OperandType::kRegList));
   }
 
   //! Returns the operand id.
@@ -1711,8 +1708,8 @@ public:
 using BaseReg [[deprecated("Use asmjit::Reg instead of asmjit::BaseReg")]] = Reg;
 #endif // !ASMJIT_NO_DEPRECATED
 
-//! Adds constructors and member functions to a class that implements abstract register. Abstract register is register
-//! that doesn't have type or signature yet, it's a base class like `x86::Reg` or `arm::Reg`.
+//! Adds constructors and member functions to a class that implements abstract register. Abstract register
+//! is a register that doesn't have a base RegType and signature like `x86::Gp`, `x86::Vec`, `a64::Gp`, etc...
 #define ASMJIT_DEFINE_ABSTRACT_REG(REG, BASE)                                            \
 public:                                                                                  \
   /*! Default constructor that only setups basics. */                                    \
@@ -2365,7 +2362,7 @@ public:
   //! Tests whether the memory operand has a non-zero offset or absolute address.
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR bool hasOffset() const noexcept {
-    return (_data[kDataMemOffsetLo] | uint32_t(_baseId & Support::bitMaskFromBool<uint32_t>(isOffset64Bit()))) != 0;
+    return (_data[kDataMemOffsetLo] | uint32_t(_baseId & Support::bool_as_mask<uint32_t>(isOffset64Bit()))) != 0;
   }
 
   //! Returns either relative offset or absolute address as 64-bit integer.
@@ -2379,7 +2376,7 @@ public:
   [[nodiscard]]
   ASMJIT_INLINE_CONSTEXPR int32_t offsetLo32() const noexcept { return int32_t(_data[kDataMemOffsetLo]); }
 
-  //! Returns a 32-but high part of a 64-bit offset or absolute address.
+  //! Returns a 32-bit high part of a 64-bit offset or absolute address.
   //!
   //! \note This function is UNSAFE and returns garbage if `isOffset64Bit()`
   //! returns false. Never use it blindly without checking it first.
@@ -2394,7 +2391,7 @@ public:
   ASMJIT_INLINE_CONSTEXPR void setOffset(int64_t offset) noexcept {
     uint32_t lo = uint32_t(uint64_t(offset) & 0xFFFFFFFFu);
     uint32_t hi = uint32_t(uint64_t(offset) >> 32);
-    uint32_t hiMsk = Support::bitMaskFromBool<uint32_t>(isOffset64Bit());
+    uint32_t hiMsk = Support::bool_as_mask<uint32_t>(isOffset64Bit());
 
     _data[kDataMemOffsetLo] = lo;
     _baseId = (hi & hiMsk) | (_baseId & ~hiMsk);
@@ -2402,11 +2399,6 @@ public:
 
   //! Sets a low 32-bit offset to `offset` (don't use without knowing how BaseMem works).
   ASMJIT_INLINE_CONSTEXPR void setOffsetLo32(int32_t offset) noexcept { _data[kDataMemOffsetLo] = uint32_t(offset); }
-
-  //! Adjusts the offset by `offset`.
-  //!
-  //! \note This is a fast function that doesn't use the HI 32-bits of a 64-bit offset. Use it only if you know that
-  //! there is a BASE register and the offset is only 32 bits anyway.
 
   //! Adjusts the memory operand offset by a `offset`.
   ASMJIT_INLINE_CONSTEXPR void addOffset(int64_t offset) noexcept {
@@ -2421,6 +2413,9 @@ public:
   }
 
   //! Adds `offset` to a low 32-bit offset part (don't use without knowing how BaseMem works).
+  //!
+  //! \note This is a fast function that doesn't use the high 32-bits of a 64-bit offset. Use it only if you know that
+  //! there is a BASE register and the offset is only 32 bits anyway.
   ASMJIT_INLINE_CONSTEXPR void addOffsetLo32(int32_t offset) noexcept { _data[kDataMemOffsetLo] += uint32_t(offset); }
 
   //! Resets the memory offset to zero.
@@ -2469,8 +2464,8 @@ public:
     : Operand(Globals::Init,
               Signature::fromOpType(OperandType::kImm) | Signature::fromPredicate(uint32_t(shift.op())),
               0,
-              Support::unpackU32At0(shift.value()),
-              Support::unpackU32At1(shift.value())) {}
+              Support::unpack_u32_at_0(shift.value()),
+              Support::unpack_u32_at_1(shift.value())) {}
 
   //! Creates a new signed immediate value, assigning the value to `val` and an architecture-specific predicate
   //! to `predicate`.
@@ -2481,8 +2476,8 @@ public:
     : Operand(Globals::Init,
               Signature::fromOpType(OperandType::kImm) | Signature::fromPredicate(predicate),
               0,
-              Support::unpackU32At0(int64_t(val)),
-              Support::unpackU32At1(int64_t(val))) {}
+              Support::unpack_u32_at_0(int64_t(val)),
+              Support::unpack_u32_at_1(int64_t(val))) {}
 
   ASMJIT_INLINE_NODEBUG Imm(const float& val, const uint32_t predicate = 0) noexcept
     : Operand(Globals::Init,
@@ -2559,23 +2554,23 @@ public:
 
   //! Tests whether the immediate can be casted to 8-bit signed integer.
   [[nodiscard]]
-  ASMJIT_INLINE_CONSTEXPR bool isInt8() const noexcept { return type() == ImmType::kInt && Support::isInt8(value()); }
+  ASMJIT_INLINE_CONSTEXPR bool isInt8() const noexcept { return type() == ImmType::kInt && Support::is_int_n<8>(value()); }
 
   //! Tests whether the immediate can be casted to 8-bit unsigned integer.
   [[nodiscard]]
-  ASMJIT_INLINE_CONSTEXPR bool isUInt8() const noexcept { return type() == ImmType::kInt && Support::isUInt8(value()); }
+  ASMJIT_INLINE_CONSTEXPR bool isUInt8() const noexcept { return type() == ImmType::kInt && Support::is_uint_n<8>(value()); }
 
   //! Tests whether the immediate can be casted to 16-bit signed integer.
   [[nodiscard]]
-  ASMJIT_INLINE_CONSTEXPR bool isInt16() const noexcept { return type() == ImmType::kInt && Support::isInt16(value()); }
+  ASMJIT_INLINE_CONSTEXPR bool isInt16() const noexcept { return type() == ImmType::kInt && Support::is_int_n<16>(value()); }
 
   //! Tests whether the immediate can be casted to 16-bit unsigned integer.
   [[nodiscard]]
-  ASMJIT_INLINE_CONSTEXPR bool isUInt16() const noexcept { return type() == ImmType::kInt && Support::isUInt16(value()); }
+  ASMJIT_INLINE_CONSTEXPR bool isUInt16() const noexcept { return type() == ImmType::kInt && Support::is_uint_n<16>(value()); }
 
   //! Tests whether the immediate can be casted to 32-bit signed integer.
   [[nodiscard]]
-  ASMJIT_INLINE_CONSTEXPR bool isInt32() const noexcept { return type() == ImmType::kInt && Support::isInt32(value()); }
+  ASMJIT_INLINE_CONSTEXPR bool isInt32() const noexcept { return type() == ImmType::kInt && Support::is_int_n<32>(value()); }
 
   //! Tests whether the immediate can be casted to 32-bit unsigned integer.
   [[nodiscard]]

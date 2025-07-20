@@ -16,7 +16,7 @@
 #define ASMJIT_LIBRARY_MAKE_VERSION(major, minor, patch) ((major << 16) | (minor << 8) | (patch))
 
 //! AsmJit library version, see \ref ASMJIT_LIBRARY_MAKE_VERSION for a version format reference.
-#define ASMJIT_LIBRARY_VERSION ASMJIT_LIBRARY_MAKE_VERSION(1, 17, 0)
+#define ASMJIT_LIBRARY_VERSION ASMJIT_LIBRARY_MAKE_VERSION(1, 18, 0)
 
 //! \def ASMJIT_ABI_NAMESPACE
 //!
@@ -27,7 +27,7 @@
 //! AsmJit default, which makes it possible to use multiple AsmJit libraries within a single project, totally
 //! controlled by users. This is useful especially in cases in which some of such library comes from third party.
 #if !defined(ASMJIT_ABI_NAMESPACE)
-  #define ASMJIT_ABI_NAMESPACE v1_17
+  #define ASMJIT_ABI_NAMESPACE v1_18
 #endif // !ASMJIT_ABI_NAMESPACE
 
 //! \}
@@ -464,15 +464,6 @@ namespace asmjit {
   #define ASMJIT_VECTORCALL
 #endif
 
-// Type alignment (not allowed by C++17 'alignas' keyword).
-#if defined(__GNUC__)
-  #define ASMJIT_ALIGN_TYPE(N, ...) __attribute__((__aligned__(N))) __VA_ARGS__
-#elif defined(_MSC_VER)
-  #define ASMJIT_ALIGN_TYPE(N, ...) __declspec(align(N)) __VA_ARGS__
-#else
-  #define ASMJIT_ALIGN_TYPE(N, ...) __VA_ARGS__
-#endif
-
 //! \def ASMJIT_MAY_ALIAS
 //!
 //! Expands to `__attribute__((__may_alias__))` if supported.
@@ -589,7 +580,7 @@ namespace asmjit {
 //! \def ASMJIT_DEFINE_ENUM_FLAGS(T)
 //!
 //! Defines bit operations for enumeration flags.
-#ifdef _DOXYGEN
+#if defined(_DOXYGEN)
   #define ASMJIT_DEFINE_ENUM_FLAGS(T)
 #else
   #define ASMJIT_DEFINE_ENUM_FLAGS(T)                                          \
@@ -624,7 +615,7 @@ namespace asmjit {
 //! \def ASMJIT_DEFINE_ENUM_COMPARE(T)
 //!
 //! Defines comparison operations for enumeration flags.
-#if defined(_DOXYGEN) || (defined(_MSC_VER) && _MSC_VER <= 1900)
+#if defined(_DOXYGEN)
   #define ASMJIT_DEFINE_ENUM_COMPARE(T)
 #else
   #define ASMJIT_DEFINE_ENUM_COMPARE(T)                                        \

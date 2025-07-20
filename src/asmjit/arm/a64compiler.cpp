@@ -31,7 +31,7 @@ Compiler::~Compiler() noexcept {}
 
 Error Compiler::onAttach(CodeHolder& code) noexcept {
   ASMJIT_PROPAGATE(Base::onAttach(code));
-  Error err = addPassT<ARMRAPass>();
+  Error err = addPass<ARMRAPass>();
 
   if (ASMJIT_UNLIKELY(err)) {
     onDetach(code);
@@ -51,7 +51,7 @@ Error Compiler::onDetach(CodeHolder& code) noexcept {
 Error Compiler::onReinit(CodeHolder& code) noexcept {
   Error err = Base::onReinit(code);
   if (err == kErrorOk) {
-    err = addPassT<ARMRAPass>();
+    err = addPass<ARMRAPass>();
   }
   return err;
 }

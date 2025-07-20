@@ -294,6 +294,17 @@ namespace asmjit {
 //!
 //! \section api_changes API Changes
 //!
+//! ### Changes committed at 2025-XX-XX
+//!
+//! Core changes:
+//!
+//!   - Refactored support library to make it reusable across projects. This means that in general it uses
+//!     lowercase_function_names_having_underscores() instead of camelCasedFunctionNames(). The support library
+//!     is mostly designed for AsmJit internal use cases, so renamed functions are not documented here.
+//!
+//!   - Removed `Support::Temporary` in favor of `Span<uint8_t>`. `CodeHolder` and `Zone` now accept
+//!     `Span<uint8_t>` instead of `Support::Temporary`.
+//!
 //! ### Changes committed at 2025-06-15
 //!
 //! Core changes:
@@ -1975,7 +1986,6 @@ namespace asmjit {
 //!   - \ref ZoneTree - Zone allocated red-black tree.
 //!   - \ref ZoneList - Zone allocated double-linked list.
 //!   - \ref ZoneVector - Zone allocated vector.
-//!   - \ref ZoneBitVector - Zone allocated vector of bits.
 //!
 //! \section using_zone_containers Using Zone Allocated Containers
 //!
@@ -1984,20 +1994,20 @@ namespace asmjit {
 //! have to worry about allocations as you should not need to add items to AsmJit's data structures directly as there
 //! should be API for all required operations.
 //!
-//! The following APIs in \ref CodeHolder returns \ref ZoneVector reference:
+//! The following APIs in \ref CodeHolder returns a non-owning \ref Span:
 //!
 //! ```
 //! using namespace asmjit;
 //!
 //! void example(CodeHolder& code) {
 //!   // Contains all section entries managed by CodeHolder.
-//!   const ZoneVector<Section*>& sections = code.sections();
+//!   const Span<Section*> sections = code.sections();
 //!
 //!   // Contains all label entries managed by CodeHolder.
-//!   const ZoneVector<LabelEntry>& labelEntries = code.labelEntries();
+//!   const Span<LabelEntry> labelEntries = code.labelEntries();
 //!
 //!   // Contains all relocation entries managed by CodeHolder.
-//!   const ZoneVector<RelocEntry*>& relocEntries = code.relocEntries();
+//!   const Span<RelocEntry*> relocEntries = code.relocEntries();
 //! }
 //! ```
 //!

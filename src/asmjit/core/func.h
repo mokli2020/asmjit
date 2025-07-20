@@ -1516,7 +1516,7 @@ public:
   //! \overload
   inline void addDirtyRegs(const Reg& reg) noexcept {
     ASMJIT_ASSERT(reg.id() < Globals::kMaxPhysRegs);
-    addDirtyRegs(reg.regGroup(), Support::bitMask(reg.id()));
+    addDirtyRegs(reg.regGroup(), Support::bitMask<RegMask>(reg.id()));
   }
 
   //! \overload
@@ -1585,7 +1585,7 @@ public:
   //! Adds a single register to the unavailable set.
   inline void addUnavailableRegs(const Reg& reg) noexcept {
     ASMJIT_ASSERT(reg.id() < Globals::kMaxPhysRegs);
-    addUnavailableRegs(reg.regGroup(), Support::bitMask(reg.id()));
+    addUnavailableRegs(reg.regGroup(), Support::bitMask<RegMask>(reg.id()));
   }
 
   //! Adds multiple registers to the unavailable set.

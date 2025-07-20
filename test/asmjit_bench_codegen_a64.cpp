@@ -128,14 +128,6 @@ static void generateGpSequenceInternal(
   cc.casl(xA, xB, m);
   cc.caslb(wA, wB, m);
   cc.caslh(wA, wB, m);
-  cc.casp(wA, wB, wC, wD, m);
-  cc.casp(xA, xB, xC, xD, m);
-  cc.caspa(wA, wB, wC, wD, m);
-  cc.caspa(xA, xB, xC, xD, m);
-  cc.caspal(wA, wB, wC, wD, m);
-  cc.caspal(xA, xB, xC, xD, m);
-  cc.caspl(wA, wB, wC, wD, m);
-  cc.caspl(xA, xB, xC, xD, m);
   cc.ccmn(wA, wB, 3, CondCode::kEQ);
   cc.ccmn(xA, xB, 3, CondCode::kEQ);
   cc.ccmn(wA, 2, 3, CondCode::kEQ);

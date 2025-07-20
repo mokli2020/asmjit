@@ -65,15 +65,17 @@ int main(int argc, char* argv[]) {
   bool testX86 = strcmp(arch, "all") == 0 || strcmp(arch, "x86") == 0;
   bool testX64 = strcmp(arch, "all") == 0 || strcmp(arch, "x64") == 0;
 
-  if (testX86 || testX64)
+  if (testX86 || testX64) {
     benchmarkX86Emitters(numIterations, testX86, testX64);
+  }
 #endif
 
 #if !defined(ASMJIT_NO_AARCH64)
   bool testAArch64 = strcmp(arch, "all") == 0 || strcmp(arch, "aarch64") == 0;
 
-  if (testAArch64)
+  if (testAArch64) {
     benchmarkA64Emitters(numIterations);
+  }
 #endif
 
   return 0;
