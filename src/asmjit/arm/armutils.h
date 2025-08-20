@@ -86,10 +86,10 @@ static bool encodeLogicalImm(uint64_t imm, uint32_t width, LogicalImm* out) noex
   } while (width > 2);
 
   // Patterns of all zeros and all ones are not encodable.
-  uint64_t lsbMask = Support::lsbMask<uint64_t>(width);
-  imm &= lsbMask;
+  uint64_t lsb_mask = Support::lsb_mask<uint64_t>(width);
+  imm &= lsb_mask;
 
-  if (imm == 0 || imm == lsbMask)
+  if (imm == 0 || imm == lsb_mask)
     return false;
 
   // Inspect the pattern and get the most important bit indexes.
@@ -104,11 +104,11 @@ static bool encodeLogicalImm(uint64_t imm, uint32_t width, LogicalImm* out) noex
   uint32_t zCount = (zImm ? Support::ctz(zImm) : width) - zIndex;
 
   uint32_t oIndex = zIndex + zCount;
-  uint64_t oImm = ~(zImm ^ Support::lsbMask<uint64_t>(oIndex));
+  uint64_t oImm = ~(zImm ^ Support::lsb_mask<uint64_t>(oIndex));
   uint32_t oCount = (oImm ? Support::ctz(oImm) : width) - (oIndex);
 
   // Verify whether the bit-pattern is encodable.
-  uint64_t mustBeZero = oImm ^ ~Support::lsbMask<uint64_t>(oIndex + oCount);
+  uint64_t mustBeZero = oImm ^ ~Support::lsb_mask<uint64_t>(oIndex + oCount);
   if (mustBeZero != 0 || (zIndex > 0 && width - (oIndex + oCount) != 0))
     return false;
 
@@ -139,7 +139,7 @@ static ASMJIT_INLINE_NODEBUG bool isAddSubImm(uint64_t imm) noexcept {
 //! verify that the immediate is encodable before using the value.
 template<typename T>
 static ASMJIT_INLINE_NODEBUG bool isByteMaskImm8(const T& imm) noexcept {
-  constexpr T kMask = T(0x0101010101010101 & Support::allOnes<T>());
+  constexpr T kMask = T(0x0101010101010101 & Support::bit_ones<T>);
   return imm == (imm & kMask) * T(255);
 }
 
@@ -154,11 +154,11 @@ static ASMJIT_INLINE_NODEBUG uint32_t encodeImm64ByteMaskToImm8(uint64_t imm) no
 //! A generic implementation that checjs whether a floating point value can be converted to ARM Imm8.
 template<typename T, uint32_t kNumBBits, uint32_t kNumCDEFGHBits, uint32_t kNumZeroBits>
 static ASMJIT_INLINE bool isFPImm8Generic(T val) noexcept {
-  constexpr uint32_t kAllBsMask = Support::lsbMask<uint32_t>(kNumBBits);
-  constexpr uint32_t kB0Pattern = Support::bitMask(kNumBBits - 1);
+  constexpr uint32_t kAllBsMask = Support::lsb_mask_const<uint32_t>(kNumBBits);
+  constexpr uint32_t kB0Pattern = Support::bitMask<uint32_t>(kNumBBits - 1);
   constexpr uint32_t kB1Pattern = kAllBsMask ^ kB0Pattern;
 
-  T immZ = val & Support::lsbMask<T>(kNumZeroBits);
+  T immZ = val & Support::lsb_mask<T>(kNumZeroBits);
   uint32_t immB = uint32_t(val >> (kNumZeroBits + kNumCDEFGHBits)) & kAllBsMask;
 
   // ImmZ must be all zeros and ImmB must either be B0 or B1 pattern.
@@ -186,7 +186,7 @@ static ASMJIT_INLINE_NODEBUG bool isFP16Imm8(uint32_t val) noexcept { return isF
 //! ```
 static ASMJIT_INLINE_NODEBUG bool isFP32Imm8(uint32_t val) noexcept { return isFPImm8Generic<uint32_t, 6, 6, 19>(val); }
 //! \overload
-static ASMJIT_INLINE_NODEBUG bool isFP32Imm8(float val) noexcept { return isFP32Imm8(Support::bitCast<uint32_t>(val)); }
+static ASMJIT_INLINE_NODEBUG bool isFP32Imm8(float val) noexcept { return isFP32Imm8(Support::bit_cast<uint32_t>(val)); }
 
 //! Returns true if the given double precision floating point `val` can be encoded as ARM IMM8 value, which represents
 //! a limited set of floating point immediate values, which can be used with FMOV instruction.
@@ -198,7 +198,7 @@ static ASMJIT_INLINE_NODEBUG bool isFP32Imm8(float val) noexcept { return isFP32
 //! ```
 static ASMJIT_INLINE_NODEBUG bool isFP64Imm8(uint64_t val) noexcept { return isFPImm8Generic<uint64_t, 9, 6, 48>(val); }
 //! \overload
-static ASMJIT_INLINE_NODEBUG bool isFP64Imm8(double val) noexcept { return isFP64Imm8(Support::bitCast<uint64_t>(val)); }
+static ASMJIT_INLINE_NODEBUG bool isFP64Imm8(double val) noexcept { return isFP64Imm8(Support::bit_cast<uint64_t>(val)); }
 
 //! \cond
 template<typename T, uint32_t kNumBBits, uint32_t kNumCDEFGHBits, uint32_t kNumZeroBits>
@@ -214,7 +214,7 @@ static ASMJIT_INLINE_NODEBUG uint32_t encodeFPToImm8Generic(T val) noexcept {
 //! rearranges some bits into Imm8 order.
 static ASMJIT_INLINE_NODEBUG uint32_t encodeFP64ToImm8(uint64_t val) noexcept { return encodeFPToImm8Generic<uint64_t, 9, 6, 48>(val); }
 //! \overload
-static ASMJIT_INLINE_NODEBUG uint32_t encodeFP64ToImm8(double val) noexcept { return encodeFP64ToImm8(Support::bitCast<uint64_t>(val)); }
+static ASMJIT_INLINE_NODEBUG uint32_t encodeFP64ToImm8(double val) noexcept { return encodeFP64ToImm8(Support::bit_cast<uint64_t>(val)); }
 
 } // {Utils}
 

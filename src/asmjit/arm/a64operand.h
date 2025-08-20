@@ -611,7 +611,7 @@ public:
   //! Resets offset mode to default (fixed offset, without write-back).
   ASMJIT_INLINE_CONSTEXPR void resetOffsetMode() noexcept { _signature.setField<kSignatureMemOffsetModeMask>(uint32_t(OffsetMode::kFixed)); }
 
-  //! Tests whether the current memory offset mode is fixed (see \ref OffsetMode::kFixed).
+  //! Tests whether the current memory offset mode is fixed (see \ref arm::OffsetMode::kFixed).
   ASMJIT_INLINE_CONSTEXPR bool isFixedOffset() const noexcept { return offsetMode() == OffsetMode::kFixed; }
   //! Tests whether the current memory offset mode is either pre-index or post-index (write-back is used).
   ASMJIT_INLINE_CONSTEXPR bool isPreOrPost() const noexcept { return offsetMode() != OffsetMode::kFixed; }

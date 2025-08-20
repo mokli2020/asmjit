@@ -53,8 +53,8 @@ ASMJIT_FAVOR_SIZE Error initCallConv(CallConv& cc, CallConvId ccId, const Enviro
   cc.setSaveRestoreRegSize(RegGroup::kVec, 8);
   cc.setSaveRestoreAlignment(RegGroup::kGp, 16);
   cc.setSaveRestoreAlignment(RegGroup::kVec, 16);
-  cc.setSaveRestoreAlignment(RegGroup::kMask, 1);
-  cc.setSaveRestoreAlignment(RegGroup::kExtraVirt3, 1);
+  cc.setSaveRestoreAlignment(RegGroup::kMask, 8);
+  cc.setSaveRestoreAlignment(RegGroup::kExtra, 1);
   cc.setPassedOrder(RegGroup::kGp, 0, 1, 2, 3, 4, 5, 6, 7);
   cc.setPassedOrder(RegGroup::kVec, 0, 1, 2, 3, 4, 5, 6, 7);
   cc.setNaturalStackAlignment(16);
@@ -62,14 +62,14 @@ ASMJIT_FAVOR_SIZE Error initCallConv(CallConv& cc, CallConvId ccId, const Enviro
   if (shouldTreatAsCDecl(ccId)) {
     // ARM doesn't have that many calling conventions as we can find in X86 world, treat most conventions as __cdecl.
     cc.setId(CallConvId::kCDecl);
-    cc.setPreservedRegs(RegGroup::kGp, Support::bitMask(Gp::kIdOs, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30));
-    cc.setPreservedRegs(RegGroup::kVec, Support::bitMask(8, 9, 10, 11, 12, 13, 14, 15));
+    cc.setPreservedRegs(RegGroup::kGp, Support::bitMask<RegMask>(Gp::kIdOs, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30));
+    cc.setPreservedRegs(RegGroup::kVec, Support::bitMask<RegMask>(8, 9, 10, 11, 12, 13, 14, 15));
   }
   else {
     cc.setId(ccId);
     cc.setSaveRestoreRegSize(RegGroup::kVec, 16);
-    cc.setPreservedRegs(RegGroup::kGp, Support::bitMask(4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30));
-    cc.setPreservedRegs(RegGroup::kVec, Support::bitMask(4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31));
+    cc.setPreservedRegs(RegGroup::kGp, Support::bitMask<RegMask>(4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30));
+    cc.setPreservedRegs(RegGroup::kVec, Support::bitMask<RegMask>(4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31));
   }
 
   return kErrorOk;
@@ -153,13 +153,13 @@ ASMJIT_FAVOR_SIZE Error initFuncDetail(FuncDetail& func, const FuncSignature& si
           if (regId != Reg::kIdBad) {
             RegType regType = typeId <= TypeId::kUInt32 ? RegType::kGp32 : RegType::kGp64;
             arg.assignRegData(regType, regId);
-            func.addUsedRegs(RegGroup::kGp, Support::bitMask(regId));
+            func.addUsedRegs(RegGroup::kGp, Support::bitMask<RegMask>(regId));
             gpzPos++;
           }
           else {
             uint32_t size = Support::max<uint32_t>(TypeUtils::sizeOf(typeId), minStackArgSize);
             if (size >= 8) {
-              stackOffset = Support::alignUp(stackOffset, 8);
+              stackOffset = Support::align_up(stackOffset, 8);
             }
             arg.assignStackOffset(int32_t(stackOffset));
             stackOffset += size;
@@ -182,13 +182,13 @@ ASMJIT_FAVOR_SIZE Error initFuncDetail(FuncDetail& func, const FuncSignature& si
 
             arg.initTypeId(typeId);
             arg.assignRegData(regType, regId);
-            func.addUsedRegs(RegGroup::kVec, Support::bitMask(regId));
+            func.addUsedRegs(RegGroup::kVec, Support::bitMask<RegMask>(regId));
             vecPos++;
           }
           else {
             uint32_t size = Support::max<uint32_t>(TypeUtils::sizeOf(typeId), minStackArgSize);
             if (size >= 8) {
-              stackOffset = Support::alignUp(stackOffset, 8);
+              stackOffset = Support::align_up(stackOffset, 8);
             }
             arg.assignStackOffset(int32_t(stackOffset));
             stackOffset += size;
@@ -203,7 +203,7 @@ ASMJIT_FAVOR_SIZE Error initFuncDetail(FuncDetail& func, const FuncSignature& si
       return DebugUtils::errored(kErrorInvalidState);
   }
 
-  func._argStackSize = Support::alignUp(stackOffset, 8u);
+  func._argStackSize = Support::align_up(stackOffset, 8u);
   return kErrorOk;
 }
 

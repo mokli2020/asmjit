@@ -13,6 +13,7 @@
 #include "../core/logger.h"
 #include "../core/misc_p.h"
 #include "../core/support.h"
+
 #include "../arm/armformatter_p.h"
 #include "../arm/armutils.h"
 #include "../arm/a64assembler.h"
@@ -295,7 +296,7 @@ static inline SizeOp armElementTypeToSizeOp(uint32_t vecOpType, RegType regType,
   SizeOp op = table.array[index];
   SizeOp modifiedOp { uint8_t(op.value & map.sizeOpMask) };
 
-  if (!Support::bitTest(map.acceptMask, op.value)) {
+  if (!Support::bit_test(map.acceptMask, op.value)) {
     modifiedOp.makeInvalid();
   }
 
@@ -514,13 +515,13 @@ static inline bool armCheckMemBaseIndexRel(const Mem& mem) noexcept {
   RegType baseType = mem.baseType();
   RegType indexType = mem.indexType();
 
-  if (!Support::bitTest(kBaseMask, baseType)) {
+  if (!Support::bit_test(kBaseMask, baseType)) {
     return false;
   }
 
   if (baseType > RegType::kLabelTag) {
     // Index allows either Gp32 or Gp64.
-    if (!Support::bitTest(kIndexMask, indexType)) {
+    if (!Support::bit_test(kIndexMask, indexType)) {
       return false;
     }
 
@@ -557,7 +558,7 @@ static inline bool pickFpOpcode(const Vec& reg, uint32_t sOp, uint32_t sHf, uint
   if (!reg.hasElementType()) {
     // Scalar operation [HSD].
     uint32_t sz = diff(reg.regType(), RegType::kVec16);
-    if (sz > 2u || !Support::bitTest(szBits[sHf].sizeMask, sz)) {
+    if (sz > 2u || !Support::bit_test(szBits[sHf].sizeMask, sz)) {
       return false;
     }
 
@@ -570,7 +571,7 @@ static inline bool pickFpOpcode(const Vec& reg, uint32_t sOp, uint32_t sHf, uint
     uint32_t q = diff(reg.regType(), RegType::kVec64);
     uint32_t sz = diff(reg.elementType(), VecElementType::kH);
 
-    if (q > 1u || sz > 2u || !Support::bitTest(szBits[vHf].sizeMask, sz)) {
+    if (q > 1u || sz > 2u || !Support::bit_test(szBits[vHf].sizeMask, sz)) {
       return false;
     }
 
@@ -611,7 +612,7 @@ static inline bool checkSignature(const Operand_& o0, const Operand_& o1, const 
 // not selectable.
 static inline bool checkGpType(const Operand_& op, uint32_t allowed) noexcept {
   RegType type = op.as<Reg>().regType();
-  return Support::bitTest(allowed << uint32_t(RegType::kGp32), type);
+  return Support::bit_test(allowed << uint32_t(RegType::kGp32), type);
 }
 
 static inline bool checkGpType(const Operand_& op, uint32_t allowed, uint32_t* x) noexcept {
@@ -620,7 +621,7 @@ static inline bool checkGpType(const Operand_& op, uint32_t allowed, uint32_t* x
   // additional logic.
   RegType type = op.as<Reg>().regType();
   *x = diff(type, RegType::kGp32) & allowed;
-  return Support::bitTest(allowed << uint32_t(RegType::kGp32), type);
+  return Support::bit_test(allowed << uint32_t(RegType::kGp32), type);
 }
 
 static inline bool checkGpType(const Operand_& o0, const Operand_& o1, uint32_t allowed, uint32_t* x) noexcept {
@@ -1045,8 +1046,8 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         if (!checkGpId(o1, opData.bHiId))
           goto InvalidPhysId;
 
-        if (o2.as<Imm>().valueAs<uint64_t>() >= Support::bitMask(opData.aImmSize + opData.aImmDiscardLsb) ||
-            o3.as<Imm>().valueAs<uint64_t>() >= Support::bitMask(opData.bImmSize + opData.bImmDiscardLsb))
+        if (o2.as<Imm>().valueAs<uint64_t>() >= Support::bitMask<uint32_t>(opData.aImmSize + opData.aImmDiscardLsb) ||
+            o3.as<Imm>().valueAs<uint64_t>() >= Support::bitMask<uint32_t>(opData.bImmSize + opData.bImmDiscardLsb))
           goto InvalidImmediate;
 
         uint32_t aImm = o2.as<Imm>().valueAs<uint32_t>() >> opData.aImmDiscardLsb;
@@ -1377,7 +1378,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         opcode.reset(uint32_t(opData.immediateOp) << 23);
 
         // AND|ANDS|BIC|BICS|ORR|EOR (immediate) uses a LogicalImm format described by N:R:S values.
-        uint64_t immMask = Support::lsbMask<uint64_t>(opSize);
+        uint64_t immMask = Support::lsb_mask<uint64_t>(opSize);
         uint64_t immValue = o2.as<Imm>().valueAs<uint64_t>();
 
         if (opData.negateImm)
@@ -1589,7 +1590,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           goto InvalidPhysId;
 
         // TST (immediate) uses a LogicalImm format described by N:R:S values.
-        uint64_t immMask = Support::lsbMask<uint64_t>(opSize);
+        uint64_t immMask = Support::lsb_mask<uint64_t>(opSize);
         uint64_t immValue = o1.as<Imm>().valueAs<uint64_t>();
 
         // Logical instructions use 13-bit immediate pattern encoded as N:ImmS:ImmR.
@@ -2101,13 +2102,13 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
 
         if (opData.immOp & (1u << 18)) {
           // Zero extend imm.
-          if (!Support::isUInt8(imm)) {
+          if (!Support::is_uint_n<8>(imm)) {
             goto InvalidImmediate;
           }
         }
         else {
           // Sign extend imm.
-          if (!Support::isInt8(int64_t(imm))) {
+          if (!Support::is_int_n<8>(int64_t(imm))) {
             goto InvalidImmediate;
           }
         }
@@ -2298,7 +2299,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
         rmRel = &o0;
 
         // A variation that uses Cond code (or where Cond code is forced like BC.<cond>).
-        if (instCC != CondCode::kAL || Support::bitTest(opcode.v, 30)) {
+        if (instCC != CondCode::kAL || Support::bit_test(opcode.v, 30)) {
           if (opcode.hasX()) {
             // Condition code cannot be applied when the instruction has X bit set (this would be BL instruction).
             goto InvalidInstruction;
@@ -2415,7 +2416,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
             goto EmitOp_MemBaseIndex_Rn5_Rm16;
           }
 
-          if (!Support::isInt32(offset))
+          if (!Support::is_int_n<32>(offset))
             goto InvalidDisplacement;
 
           int32_t offset32 = int32_t(offset);
@@ -2425,14 +2426,14 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
 
           uint32_t imm12 = uint32_t(offset32) >> immShift;
 
-          if (Support::isUInt12(imm12) && (imm12 << immShift) == uint32_t(offset32)) {
+          if (Support::is_uint_n<12>(imm12) && (imm12 << immShift) == uint32_t(offset32)) {
             opcode.reset(uint32_t(opData.sOffsetOp) << 22);
             opcode.addImm(imm12, 10);
             opcode.addImm(prfop, 0);
             goto EmitOp_MemBase_Rn5;
           }
 
-          if (Support::isInt9(offset32)) {
+          if (Support::is_int_n<9>(offset32)) {
             opcode.reset(uint32_t(opData.uOffsetOp) << 21);
             opcode.addImm(uint32_t(offset32) & 0x1FFu, 12);
             opcode.addImm(prfop, 0);
@@ -2503,12 +2504,12 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           }
 
           // Makes it easier to work with the offset especially on 32-bit arch.
-          if (!Support::isInt32(offset))
+          if (!Support::is_int_n<32>(offset))
             goto InvalidDisplacement;
           int32_t offset32 = int32_t(offset);
 
           if (m.isPreOrPost()) {
-            if (!Support::isInt9(offset32))
+            if (!Support::is_int_n<9>(offset32))
               goto InvalidDisplacement;
 
             opcode.reset(uint32_t(opData.prePostOp) << 21);
@@ -2525,7 +2526,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
             // Alternative form of LDUR/STUR and related instructions as described by AArch64 reference manual:
             //
             // If this instruction is not encodable with scaled unsigned offset, try unscaled signed offset.
-            if (!Support::isUInt12(imm12) || (imm12 << immShift) != uint32_t(offset32)) {
+            if (!Support::is_uint_n<12>(imm12) || (imm12 << immShift) != uint32_t(offset32)) {
               instId = opData.uAltInstId;
               instInfo = &InstDB::_instInfoTable[instId];
               encodingIndex = instInfo->_encodingDataIndex;
@@ -2582,7 +2583,7 @@ Error Assembler::_emit(InstId instId, const Operand_& o0, const Operand_& o1, co
           goto InvalidDisplacement;
 
         // Offset is encoded as 7-bit immediate.
-        if (!Support::isInt7(offset32))
+        if (!Support::is_int_n<7>(offset32))
           goto InvalidDisplacement;
 
         if (m.isPreOrPost() && offset32 != 0) {
@@ -2728,7 +2729,7 @@ Case_BaseLdurStur:
           if (Support::shl(offset32, opData.immShift) != m.offsetLo32())
             goto InvalidDisplacement;
 
-          if (!Support::isInt9(offset32))
+          if (!Support::is_int_n<9>(offset32))
             goto InvalidDisplacement;
 
           if (m.isFixedOffset()) {
@@ -2776,7 +2777,7 @@ Case_BaseLdurStur:
           if (Support::shl(offset32, opData.immShift) != m.offsetLo32())
             goto InvalidDisplacement;
 
-          if (!Support::isInt10(offset32))
+          if (!Support::is_int_n<10>(offset32))
             goto InvalidDisplacement;
 
           if (m.isPostIndex())
@@ -3379,7 +3380,7 @@ Case_BaseLdurStur:
           if (scale > scaleLimit)
             goto InvalidInstruction;
 
-          uint32_t imm = Support::neg(scale) & Support::lsbMask<uint32_t>(sz + 4 + 1);
+          uint32_t imm = Support::neg(scale) & Support::lsb_mask<uint32_t>(sz + 4 + 1);
           opcode.addImm(imm, 16);
           goto EmitOp_Rd0_Rn5;
         }
@@ -4098,7 +4099,7 @@ Case_BaseLdurStur:
           // NOTE: This is only scalar for `dup d, x` case, otherwise the value
           // would be duplicated across all vector elements (1, 2, 4, 8, or 16).
           uint32_t elementType = uint32_t(o0.as<Vec>().elementType());
-          if (q > 1 || !Support::bitTest(kValidEncodings, (q << 3) | elementType))
+          if (q > 1 || !Support::bit_test(kValidEncodings, (q << 3) | elementType))
             goto InvalidInstruction;
 
           uint32_t lsbIndex = elementType - 1u;
@@ -4132,7 +4133,7 @@ Case_BaseLdurStur:
         else {
           // DUP - Vec (all) <- Vec[N].
           uint32_t elementType = uint32_t(o0.as<Vec>().elementType());
-          if (q > 1 || !Support::bitTest(kValidEncodings, (q << 3) | elementType))
+          if (q > 1 || !Support::bit_test(kValidEncodings, (q << 3) | elementType))
             goto InvalidInstruction;
 
           uint32_t lsbIndex = elementType - 1u;
@@ -4397,17 +4398,17 @@ Case_BaseLdurStur:
           goto InvalidImmediate;
 
         uint32_t lsbShift = sizeOp.size() + 3u;
-        uint32_t lsbMask = (1u << lsbShift) - 1u;
+        uint32_t lsb_mask = (1u << lsbShift) - 1u;
         uint32_t imm = o2.as<Imm>().valueAs<uint32_t>();
 
         // Some instructions use IMM and some X - IMM, so negate if required.
         if (opData.invertedImm) {
           if (imm == 0 || imm > (1u << lsbShift))
             goto InvalidImmediate;
-          imm = Support::neg(imm) & lsbMask;
+          imm = Support::neg(imm) & lsb_mask;
         }
 
-        if (imm > lsbMask)
+        if (imm > lsb_mask)
           goto InvalidImmediate;
         imm |= (1u << lsbShift);
 
@@ -4665,12 +4666,12 @@ Case_BaseLdurStur:
           }
 
           // Makes it easier to work with the offset especially on 32-bit arch.
-          if (!Support::isInt32(offset))
+          if (!Support::is_int_n<32>(offset))
             goto InvalidDisplacement;
           int32_t offset32 = int32_t(offset);
 
           if (m.isPreOrPost()) {
-            if (!Support::isInt9(offset32))
+            if (!Support::is_int_n<9>(offset32))
               goto InvalidDisplacement;
 
             opcode.reset(uint32_t(opData.prePostOp) << 21);
@@ -4686,7 +4687,7 @@ Case_BaseLdurStur:
             uint32_t imm12 = uint32_t(offset32) >> xsz;
 
             // If this instruction is not encodable with scaled unsigned offset, try unscaled signed offset.
-            if (!Support::isUInt12(imm12) || (imm12 << xsz) != uint32_t(offset32)) {
+            if (!Support::is_uint_n<12>(imm12) || (imm12 << xsz) != uint32_t(offset32)) {
               instId = opData.uAltInstId;
               instInfo = &InstDB::_instInfoTable[instId];
               encodingIndex = instInfo->_encodingDataIndex;
@@ -4751,7 +4752,7 @@ Case_BaseLdurStur:
           goto InvalidDisplacement;
 
         // Offset is encoded as a 7-bit immediate.
-        if (!Support::isInt7(offset32))
+        if (!Support::is_int_n<7>(offset32))
           goto InvalidDisplacement;
 
         if (m.isPreOrPost() && offset32 != 0) {
@@ -4798,7 +4799,7 @@ Case_SimdLdurStur:
             goto InvalidDisplacement;
 
           int32_t offset32 = m.offsetLo32();
-          if (!Support::isInt9(offset32))
+          if (!Support::is_int_n<9>(offset32))
             goto InvalidDisplacement;
 
           opcode.reset(uint32_t(opData.opcode) << 10);
@@ -5162,16 +5163,16 @@ EmitOp_Rel:
 
 EmitOp_DispImm:
   {
-    if ((offsetValue & Support::lsbMask<uint32_t>(offsetFormat.immDiscardLsb())) != 0) {
+    if ((offsetValue & Support::lsb_mask<uint32_t>(offsetFormat.immDiscardLsb())) != 0) {
       goto InvalidDisplacement;
     }
 
     int64_t dispImm64 = int64_t(offsetValue) >> offsetFormat.immDiscardLsb();
-    if (!Support::isEncodableOffset64(dispImm64, offsetFormat.immBitCount())) {
+    if (!Support::is_encodable_offset_64(dispImm64, offsetFormat.immBitCount())) {
       goto InvalidDisplacement;
     }
 
-    uint32_t dispImm32 = uint32_t(dispImm64 & Support::lsbMask<uint32_t>(offsetFormat.immBitCount()));
+    uint32_t dispImm32 = uint32_t(dispImm64 & Support::lsb_mask<uint32_t>(offsetFormat.immBitCount()));
     switch (offsetFormat.type()) {
       case OffsetType::kSignedOffset: {
         opcode.addImm(dispImm32, offsetFormat.immBitShift());
@@ -5267,11 +5268,11 @@ Error Assembler::align(AlignMode alignMode, uint32_t alignment) {
     return kErrorOk;
   }
 
-  if (ASMJIT_UNLIKELY(!Support::isPowerOf2UpTo(alignment, Globals::kMaxAlignment))) {
+  if (ASMJIT_UNLIKELY(!Support::is_power_of_2_up_to(alignment, Globals::kMaxAlignment))) {
     return reportError(DebugUtils::errored(kErrorInvalidArgument));
   }
 
-  uint32_t i = uint32_t(Support::alignUpDiff<size_t>(offset(), alignment));
+  uint32_t i = uint32_t(Support::align_up_diff<size_t>(offset(), alignment));
   if (i == 0) {
     return kErrorOk;
   }

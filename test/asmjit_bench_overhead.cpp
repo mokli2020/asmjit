@@ -448,9 +448,11 @@ static inline void test_perf_all(InitStrategy strategy, size_t n) {
 #endif
 
 #if defined(ASMJIT_HAS_HOST_BACKEND) && !defined(ASMJIT_NO_COMPILER)
+
   test_perf("Compiler"                       , strategy, n, [](IS s, size_t n) { bench_compiler<host::Compiler>(s, n); });
   test_perf("Compiler + Func"                , strategy, n, [](IS s, size_t n) { bench_compiler_func<host::Compiler>(s, n, false); });
   test_perf("Compiler + Func + Finalize"     , strategy, n, [](IS s, size_t n) { bench_compiler_func<host::Compiler>(s, n, true); });
+
   test_perf("Compiler + Func + Finalize + RT", strategy, n, [](IS s, size_t n) { bench_compiler_func_rt<host::Compiler>(s, n); });
 #endif
 }

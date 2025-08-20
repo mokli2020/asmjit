@@ -145,12 +145,12 @@ void BenchRegAllocApp::emitCode(BaseCompiler* cc, uint32_t complexity, uint32_t 
 #endif
 }
 
+constexpr size_t kLocalRegCount = 3;
+constexpr size_t kLocalOpCount = 15;
+
 #if !defined(ASMJIT_NO_X86)
 void BenchRegAllocApp::emitCode_x86(x86::Compiler* cc, uint32_t complexity, uint32_t regCount) {
-  constexpr size_t kLocalRegCount = 3;
-
   TestUtils::Random rnd(0x1234);
-  size_t localOpCount = 15;
 
   std::vector<Label> labels;
   std::vector<uint32_t> used_labels;
@@ -200,7 +200,7 @@ void BenchRegAllocApp::emitCode_x86(x86::Compiler* cc, uint32_t complexity, uint
       locals[j] = cc->newXmmSd("local%u", unsigned(j));
     }
 
-    size_t localOpThreshold = localOpCount - kLocalRegCount;
+    size_t localOpThreshold = kLocalOpCount - kLocalRegCount;
 
     for (size_t j = 0; j < 15; j++) {
       uint32_t op = rnd.nextUInt32() % 6u;
@@ -244,9 +244,6 @@ void BenchRegAllocApp::emitCode_x86(x86::Compiler* cc, uint32_t complexity, uint
 #if !defined(ASMJIT_NO_AARCH64)
 void BenchRegAllocApp::emitCode_a64(a64::Compiler* cc, uint32_t complexity, uint32_t regCount) {
   TestUtils::Random rnd(0x1234);
-
-  constexpr size_t kLocalRegCount = 3;
-  size_t localOpCount = 15;
 
   std::vector<Label> labels;
   std::vector<uint32_t> used_labels;
@@ -296,7 +293,7 @@ void BenchRegAllocApp::emitCode_a64(a64::Compiler* cc, uint32_t complexity, uint
       locals[j] = cc->newVecD("local%u", unsigned(j));
     }
 
-    size_t localOpThreshold = localOpCount - kLocalRegCount;
+    size_t localOpThreshold = kLocalOpCount - kLocalRegCount;
 
     for (size_t j = 0; j < 15; j++) {
       uint32_t op = rnd.nextUInt32() % 6;
@@ -427,27 +424,35 @@ bool BenchRegAllocApp::runArch(Arch arch) {
   cc->finalize();
   code.reinit();
 
-  printf("Arch   | Complexity | Labels | RegCount |  CodeSize | EmitTime [ms]| RA Time [ms]\n");
-  printf("-------+------------+--------+----------+-----------+--------------+-------------\n");
+#if !defined(ASMJIT_NO_LOGGING)
+  StringLogger logger;
+  if (_verbose) {
+    code.setLogger(&logger);
+    cc->addDiagnosticOptions(DiagnosticOptions::kRAAnnotate | DiagnosticOptions::kRADebugAll);
+  }
+#endif // !ASMJIT_NO_LOGGING
+
+  printf("+-----------------------------------------+-----------+-----------------------------------+--------------+--------------+\n");
+  printf("|           Input Configuration           |   Output  |        Reserved Memory [KiB]      |      Time Elapsed [ms]      |\n");
+  printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
+  printf("| Arch   | Complexity | Labels | RegCount |  CodeSize | Code Hold.| Compiler  | Pass Temp.|   Emit Time  |  Reg. Alloc  |\n");
+  printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
 
   for (uint32_t complexity = 1u; complexity <= _maximumComplexity; complexity *= 2u) {
     emitTimer.start();
     emitCode(cc.get(), complexity + 1, regCount);
     emitTimer.stop();
 
-#if !defined(ASMJIT_NO_LOGGING)
-    if (_verbose) {
-      String sb;
-      FormatOptions fmtOptions;
-      Formatter::formatNodeList(sb, fmtOptions, cc.get());
-      printf("[Complexity: %u Assembly]\n", complexity);
-      printIndented(sb.data(), 4);
-    }
-#endif // ASMJIT_NO_LOGGING
-
     finalizeTimer.start();
     Error err = cc->finalize();
     finalizeTimer.stop();
+
+#if !defined(ASMJIT_NO_LOGGING)
+    if (_verbose) {
+      printf("%s\n", logger.data());
+      logger.clear();
+    }
+#endif
 
     code.flatten();
 
@@ -457,8 +462,23 @@ bool BenchRegAllocApp::runArch(Arch arch) {
     size_t labelCount = code.labelCount();
     size_t vRegCount = cc->virtRegs().size();
 
-    printf("%-7s| %10u | %6zu | %8zu | %9zu | %12.3f | %12.3f",
-           asmjitArchAsString(arch), complexity, labelCount, vRegCount, codeSize, emitTime, finalizeTime);
+    ZoneStatistics codeHolderStats = code._zone.statistics();
+    ZoneStatistics compilerStats = cc->_codeZone.statistics();
+    ZoneStatistics passStats = cc->_passZone.statistics();
+
+    printf(
+      "| %-7s| %10u | %6zu | %8zu | %9zu | %9zu | %9zu | %9zu | %12.3f | %12.3f |",
+      asmjitArchAsString(arch),
+      complexity,
+      labelCount,
+      vRegCount,
+      codeSize,
+      (codeHolderStats.reservedSize() + 1023) / 1024,
+      (compilerStats.reservedSize() + 1023) / 1024,
+      (passStats.reservedSize() + 1023) / 1024,
+      emitTime,
+      finalizeTime
+    );
 
     if (err) {
       printf(" (err: %s)", DebugUtils::errorAsString(err));
@@ -469,6 +489,7 @@ bool BenchRegAllocApp::runArch(Arch arch) {
     code.reinit();
   }
 
+  printf("+--------+------------+--------+----------+-----------+-----------+-----------+-----------+--------------+--------------+\n");
   printf("\n");
 
   return true;

@@ -196,7 +196,7 @@ Error queryRWInfo(const BaseInst& inst, const Operand_* operands, size_t opCount
           uint32_t elementIndex = srcOp.as<Vec>().elementIndex();
 
           uint32_t elementSize = elementTypeSize[size_t(elementType)];
-          uint64_t accessMask = uint64_t(Support::lsbMask<uint32_t>(elementSize)) << (elementIndex * elementSize);
+          uint64_t accessMask = uint64_t(Support::lsb_mask<uint32_t>(elementSize)) << (elementIndex * elementSize);
 
           op._readByteMask &= accessMask;
           op._writeByteMask &= accessMask;

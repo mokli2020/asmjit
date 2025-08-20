@@ -240,7 +240,7 @@ if (NOT ASMJIT_NO_CUSTOM_FLAGS)
     list(APPEND ASMJIT_PRIVATE_CFLAGS_REL -O2)
 
     # -fno-semantic-interposition is not available on apple - the compiler issues a warning, which is not detected.
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
+    if (APPLE)
       asmjit_detect_cflags(ASMJIT_PRIVATE_CFLAGS -fno-threadsafe-statics)
     else()
       asmjit_detect_cflags(ASMJIT_PRIVATE_CFLAGS -fno-threadsafe-statics -fno-semantic-interposition)
@@ -434,8 +434,11 @@ set(ASMJIT_SRC_LIST
   asmjit/core/osutils.h
   asmjit/core/osutils_p.h
   asmjit/core/raassignment_p.h
-  asmjit/core/rabuilders_p.h
+  asmjit/core/racfgblock_p.h
+  asmjit/core/racfgbuilder_p.h
+  asmjit/core/raconstraints_p.h
   asmjit/core/radefs_p.h
+  asmjit/core/rainst_p.h
   asmjit/core/ralocal.cpp
   asmjit/core/ralocal_p.h
   asmjit/core/rapass.cpp
@@ -454,12 +457,12 @@ set(ASMJIT_SRC_LIST
   asmjit/core/virtmem.h
   asmjit/core/zone.cpp
   asmjit/core/zone.h
+  asmjit/core/zonebitset.cpp
+  asmjit/core/zonebitset_p.h
   asmjit/core/zonehash.cpp
   asmjit/core/zonehash.h
   asmjit/core/zonelist.cpp
   asmjit/core/zonelist.h
-  asmjit/core/zonestack.cpp
-  asmjit/core/zonestack.h
   asmjit/core/zonestring.h
   asmjit/core/zonetree.cpp
   asmjit/core/zonetree.h

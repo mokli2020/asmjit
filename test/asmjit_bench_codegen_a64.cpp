@@ -128,14 +128,6 @@ static void generateGpSequenceInternal(
   cc.casl(xA, xB, m);
   cc.caslb(wA, wB, m);
   cc.caslh(wA, wB, m);
-  cc.casp(wA, wB, wC, wD, m);
-  cc.casp(xA, xB, xC, xD, m);
-  cc.caspa(wA, wB, wC, wD, m);
-  cc.caspa(xA, xB, xC, xD, m);
-  cc.caspal(wA, wB, wC, wD, m);
-  cc.caspal(xA, xB, xC, xD, m);
-  cc.caspl(wA, wB, wC, wD, m);
-  cc.caspl(xA, xB, xC, xD, m);
   cc.ccmn(wA, wB, 3, CondCode::kEQ);
   cc.ccmn(xA, xB, 3, CondCode::kEQ);
   cc.ccmn(wA, 2, 3, CondCode::kEQ);
@@ -572,6 +564,53 @@ static void generateGpSequenceInternal(
 }
 
 static void generateGpSequence(BaseEmitter& emitter, bool emitPrologEpilog) {
+#ifndef ASMJIT_NO_COMPILER
+  if (emitter.isCompiler()) {
+    a64::Compiler& cc = *emitter.as<a64::Compiler>();
+
+    a64::Gp a = cc.newIntPtr("a");
+    a64::Gp b = cc.newIntPtr("b");
+    a64::Gp c = cc.newIntPtr("c");
+    a64::Gp d = cc.newIntPtr("d");
+
+    cc.addFunc(FuncSignature::build<void>());
+    generateGpSequenceInternal(cc, a, b, c, d);
+    cc.endFunc();
+
+    return;
+  }
+#endif
+
+#ifndef ASMJIT_NO_BUILDER
+  if (emitter.isBuilder()) {
+    a64::Builder& cc = *emitter.as<a64::Builder>();
+
+    a64::Gp a = a64::x0;
+    a64::Gp b = a64::x1;
+    a64::Gp c = a64::x2;
+    a64::Gp d = a64::x3;
+
+    if (emitPrologEpilog) {
+      FuncDetail func;
+      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
+
+      FuncFrame frame;
+      frame.init(func);
+      frame.addDirtyRegs(a, b, c, d);
+      frame.finalize();
+
+      cc.emitProlog(frame);
+      generateGpSequenceInternal(cc, a, b, c, d);
+      cc.emitEpilog(frame);
+    }
+    else {
+      generateGpSequenceInternal(cc, a, b, c, d);
+    }
+
+    return;
+  }
+#endif
+
   if (emitter.isAssembler()) {
     a64::Assembler& cc = *emitter.as<a64::Assembler>();
 
@@ -596,48 +635,9 @@ static void generateGpSequence(BaseEmitter& emitter, bool emitPrologEpilog) {
     else {
       generateGpSequenceInternal(cc, a, b, c, d);
     }
+
+    return;
   }
-#ifndef ASMJIT_NO_BUILDER
-  else if (emitter.isBuilder()) {
-    a64::Builder& cc = *emitter.as<a64::Builder>();
-
-    a64::Gp a = a64::x0;
-    a64::Gp b = a64::x1;
-    a64::Gp c = a64::x2;
-    a64::Gp d = a64::x3;
-
-    if (emitPrologEpilog) {
-      FuncDetail func;
-      func.init(FuncSignature::build<void, void*, const void*, size_t>(), cc.environment());
-
-      FuncFrame frame;
-      frame.init(func);
-      frame.addDirtyRegs(a, b, c, d);
-      frame.finalize();
-
-      cc.emitProlog(frame);
-      generateGpSequenceInternal(cc, a, b, c, d);
-      cc.emitEpilog(frame);
-    }
-    else {
-      generateGpSequenceInternal(cc, a, b, c, d);
-    }
-  }
-#endif
-#ifndef ASMJIT_NO_COMPILER
-  else if (emitter.isCompiler()) {
-    a64::Compiler& cc = *emitter.as<a64::Compiler>();
-
-    a64::Gp a = cc.newIntPtr("a");
-    a64::Gp b = cc.newIntPtr("b");
-    a64::Gp c = cc.newIntPtr("c");
-    a64::Gp d = cc.newIntPtr("d");
-
-    cc.addFunc(FuncSignature::build<void>());
-    generateGpSequenceInternal(cc, a, b, c, d);
-    cc.endFunc();
-  }
-#endif
 }
 
 template<typename EmitterFn>

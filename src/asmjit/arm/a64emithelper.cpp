@@ -257,7 +257,7 @@ struct PrologEpilogInfo {
   Error init(const FuncFrame& frame) noexcept {
     uint32_t offset = 0;
 
-    for (RegGroup group : Support::EnumValues<RegGroup, RegGroup::kGp, RegGroup::kVec>{}) {
+    for (RegGroup group : Support::enumerate(RegGroup::kGp, RegGroup::kVec)) {
       GroupData& data = groups[group];
 
       uint32_t n = 0;
@@ -265,7 +265,7 @@ struct PrologEpilogInfo {
       RegPair* pairs = data.pairs;
 
       uint32_t slotSize = frame.saveRestoreRegSize(group);
-      uint32_t savedRegs = frame.savedRegs(group);
+      RegMask savedRegs = frame.savedRegs(group);
 
       if (group == RegGroup::kGp && frame.hasPreservedFP()) {
         // Must be at the beginning of the push/pop sequence.
@@ -277,7 +277,7 @@ struct PrologEpilogInfo {
         offset += slotSize * 2;
         pairCount++;
 
-        savedRegs &= ~Support::bitMask(Gp::kIdFp, Gp::kIdLr);
+        savedRegs &= ~Support::bitMask<RegMask>(Gp::kIdFp, Gp::kIdLr);
       }
 
       Support::BitWordIterator<uint32_t> it(savedRegs);
@@ -327,7 +327,7 @@ ASMJIT_FAVOR_SIZE Error EmitHelper::emitProlog(const FuncFrame& frame) {
 
   uint32_t adjustInitialOffset = pei.sizeTotal;
 
-  for (RegGroup group : Support::EnumValues<RegGroup, RegGroup::kGp, RegGroup::kVec>{}) {
+  for (RegGroup group : Support::enumerate(RegGroup::kGp, RegGroup::kVec)) {
     const PrologEpilogInfo::GroupData& data = pei.groups[group];
     uint32_t pairCount = data.pairCount;
 

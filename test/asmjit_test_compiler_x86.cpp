@@ -2371,8 +2371,8 @@ public:
     uint32_t _srcBuffer[kCount + 3];
 
     // Has to be aligned.
-    uint32_t* dstBuffer = (uint32_t*)Support::alignUp<intptr_t>((intptr_t)_dstBuffer, 16);
-    uint32_t* srcBuffer = (uint32_t*)Support::alignUp<intptr_t>((intptr_t)_srcBuffer, 16);
+    uint32_t* dstBuffer = (uint32_t*)Support::align_up<intptr_t>((intptr_t)_dstBuffer, 16);
+    uint32_t* srcBuffer = (uint32_t*)Support::align_up<intptr_t>((intptr_t)_srcBuffer, 16);
 
     memcpy(dstBuffer, dstConstData, sizeof(dstConstData));
     memcpy(srcBuffer, srcConstData, sizeof(srcConstData));

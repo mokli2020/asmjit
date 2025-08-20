@@ -27,7 +27,7 @@ ASMJIT_FAVOR_SIZE Error FormatterInternal::formatInstruction(
   FormatFlags formatFlags,
   const BaseEmitter* emitter,
   Arch arch,
-  const BaseInst& inst, const Operand_* operands, size_t opCount) noexcept {
+  const BaseInst& inst, Span<const Operand_> operands) noexcept {
 
   // Format instruction options and instruction mnemonic.
   InstId instId = inst.realId();
@@ -48,7 +48,7 @@ ASMJIT_FAVOR_SIZE Error FormatterInternal::formatInstruction(
     ASMJIT_PROPAGATE(formatCondCode(sb, cc));
   }
 
-  for (uint32_t i = 0; i < opCount; i++) {
+  for (size_t i = 0u; i < operands.size(); i++) {
     const Operand_& op = operands[i];
     if (op.isNone()) {
       break;
